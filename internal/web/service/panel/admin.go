@@ -144,9 +144,7 @@ func (s *AdminService) UpdateAdmin(admin *model.ResellerAdmin) error {
 	existing.WebPath = admin.WebPath
 	existing.Inbounds = admin.Inbounds
 	existing.Enable = admin.Enable
-	if admin.ExpiryTime != 0 {
-		existing.ExpiryTime = admin.ExpiryTime
-	}
+	existing.ExpiryTime = admin.ExpiryTime
 
 	return db.Save(&existing).Error
 }

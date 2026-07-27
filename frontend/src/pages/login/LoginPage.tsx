@@ -85,10 +85,18 @@ export default function LoginPage() {
             remark: obj.remark,
             webPath: obj.webPath
           }));
-          window.location.href = basePath + obj.webPath + '/panel/';
+          const cleanBase = basePath.endsWith('/') ? basePath : basePath + '/';
+          const webPathLower = obj.webPath.toLowerCase();
+          const cleanBaseLower = cleanBase.toLowerCase();
+          if (cleanBaseLower.endsWith('/' + webPathLower + '/')) {
+            window.location.href = cleanBase + 'panel/';
+          } else {
+            window.location.href = cleanBase + obj.webPath + '/panel/';
+          }
         } else {
           localStorage.removeItem('daltoon_current_admin');
-          window.location.href = basePath + 'panel/';
+          const cleanBase = basePath.endsWith('/') ? basePath : basePath + '/';
+          window.location.href = cleanBase + 'panel/';
         }
       }
     } finally {
