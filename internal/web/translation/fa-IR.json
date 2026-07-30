@@ -274,7 +274,17 @@
       "importDatabasePgDesc": "برای انتخاب و بارگذاری یک فایل .dump جهت بازیابی پایگاه داده PostgreSQL کلیک کنید. این کار همه داده‌های فعلی را جایگزین می‌کند.",
       "migrationDownload": "دانلود فایل مهاجرت",
       "migrationDownloadDesc": "برای دانلود یک خروجی قابل‌حمل ‎.dump (متن SQL) از پایگاه‌دادهٔ SQLite خود کلیک کنید.",
-      "migrationDownloadPgDesc": "برای دانلود یک پایگاه‌دادهٔ SQLite با پسوند ‎.db که از داده‌های PostgreSQL شما ساخته می‌شود کلیک کنید؛ آمادهٔ اجرای این پنل روی SQLite."
+      "migrationDownloadPgDesc": "برای دانلود یک پایگاه‌دادهٔ SQLite با پسوند ‎.db که از داده‌های PostgreSQL شما ساخته می‌شود کلیک کنید؛ آمادهٔ اجرای این پنل روی SQLite.",
+      "openSockets": "سوکت‌های فعال",
+      "throughputSub": "پنجره ۲ دقیقه‌ای",
+      "avgWindow": "میانگین (۲ دقیقه)",
+      "avg": "میانگین",
+      "peak": "اوج",
+      "free": "آزاد",
+      "uptime": "زمان فعالیت",
+      "panel": "پنل",
+      "healthCritical": "استفاده بالا: {list}",
+      "healthWarm": "استفاده نسبتاً بالا: {list}"
     },
     "inbounds": {
       "title": "ورودی‌ها",

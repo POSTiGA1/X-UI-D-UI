@@ -274,7 +274,17 @@
       "importDatabasePgDesc": "PostgreSQL データベースを復元するために .dump ファイルを選択してアップロードするにはクリックしてください。現在のすべてのデータが置き換えられます。",
       "migrationDownload": "移行ファイルをダウンロード",
       "migrationDownloadDesc": "SQLite データベースのポータブルな .dump（SQL テキスト）エクスポートをダウンロードするにはクリックします。",
-      "migrationDownloadPgDesc": "PostgreSQL のデータから作成した .db SQLite データベースをダウンロードします。このパネルを SQLite で実行する準備が整います。"
+      "migrationDownloadPgDesc": "PostgreSQL のデータから作成した .db SQLite データベースをダウンロードします。このパネルを SQLite で実行する準備が整います。",
+      "openSockets": "open sockets",
+      "throughputSub": "2m window",
+      "avgWindow": "Avg (2m)",
+      "avg": "AVG",
+      "peak": "PEAK",
+      "free": "FREE",
+      "uptime": "Uptime",
+      "panel": "Panel",
+      "healthCritical": "High utilization: {list}",
+      "healthWarm": "Elevated utilization: {list}"
     },
     "inbounds": {
       "title": "インバウンド",

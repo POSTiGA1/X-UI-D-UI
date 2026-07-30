@@ -274,7 +274,17 @@
       "importDatabasePgDesc": "Klik untuk memilih dan mengunggah berkas .dump guna memulihkan basis data PostgreSQL Anda. Ini menggantikan semua data saat ini.",
       "migrationDownload": "Unduh migrasi",
       "migrationDownloadDesc": "Klik untuk mengunduh ekspor .dump (teks SQL) portabel dari basis data SQLite Anda.",
-      "migrationDownloadPgDesc": "Klik untuk mengunduh basis data SQLite .db yang dibuat dari data PostgreSQL Anda, siap menjalankan panel ini di SQLite."
+      "migrationDownloadPgDesc": "Klik untuk mengunduh basis data SQLite .db yang dibuat dari data PostgreSQL Anda, siap menjalankan panel ini di SQLite.",
+      "openSockets": "open sockets",
+      "throughputSub": "2m window",
+      "avgWindow": "Avg (2m)",
+      "avg": "AVG",
+      "peak": "PEAK",
+      "free": "FREE",
+      "uptime": "Uptime",
+      "panel": "Panel",
+      "healthCritical": "High utilization: {list}",
+      "healthWarm": "Elevated utilization: {list}"
     },
     "inbounds": {
       "title": "Inbound",

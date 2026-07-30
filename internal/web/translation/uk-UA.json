@@ -274,7 +274,17 @@
       "importDatabasePgDesc": "Натисніть, щоб вибрати та завантажити файл .dump для відновлення бази даних PostgreSQL. Це замінить усі поточні дані.",
       "migrationDownload": "Завантажити файл міграції",
       "migrationDownloadDesc": "Натисніть, щоб завантажити переносний експорт .dump (текст SQL) вашої бази даних SQLite.",
-      "migrationDownloadPgDesc": "Натисніть, щоб завантажити базу даних SQLite (.db), створену з ваших даних PostgreSQL і готову для запуску панелі на SQLite."
+      "migrationDownloadPgDesc": "Натисніть, щоб завантажити базу даних SQLite (.db), створену з ваших даних PostgreSQL і готову для запуску панелі на SQLite.",
+      "openSockets": "open sockets",
+      "throughputSub": "2m window",
+      "avgWindow": "Avg (2m)",
+      "avg": "AVG",
+      "peak": "PEAK",
+      "free": "FREE",
+      "uptime": "Uptime",
+      "panel": "Panel",
+      "healthCritical": "High utilization: {list}",
+      "healthWarm": "Elevated utilization: {list}"
     },
     "inbounds": {
       "title": "Вхідні",

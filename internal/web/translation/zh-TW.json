@@ -274,7 +274,17 @@
       "importDatabasePgDesc": "點擊選擇並上傳 .dump 檔案以還原您的 PostgreSQL 資料庫。此操作將取代所有目前的資料。",
       "migrationDownload": "下載遷移檔案",
       "migrationDownloadDesc": "點擊下載目前 SQLite 資料庫的可攜式 .dump（SQL 文字）匯出檔。",
-      "migrationDownloadPgDesc": "點擊下載由 PostgreSQL 資料建立的 .db SQLite 資料庫，可用於在 SQLite 上執行本面板。"
+      "migrationDownloadPgDesc": "點擊下載由 PostgreSQL 資料建立的 .db SQLite 資料庫，可用於在 SQLite 上執行本面板。",
+      "openSockets": "open sockets",
+      "throughputSub": "2m window",
+      "avgWindow": "Avg (2m)",
+      "avg": "AVG",
+      "peak": "PEAK",
+      "free": "FREE",
+      "uptime": "Uptime",
+      "panel": "Panel",
+      "healthCritical": "High utilization: {list}",
+      "healthWarm": "Elevated utilization: {list}"
     },
     "inbounds": {
       "title": "入站",

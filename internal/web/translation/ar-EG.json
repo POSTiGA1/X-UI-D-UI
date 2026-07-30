@@ -274,7 +274,17 @@
       "importDatabasePgDesc": "انقر لاختيار ورفع ملف .dump لاستعادة قاعدة بيانات PostgreSQL. سيؤدي هذا إلى استبدال جميع البيانات الحالية.",
       "migrationDownload": "تنزيل ملف الترحيل",
       "migrationDownloadDesc": "انقر لتنزيل تصدير .dump محمول (نص SQL) لقاعدة بيانات SQLite الخاصة بك.",
-      "migrationDownloadPgDesc": "انقر لتنزيل قاعدة بيانات SQLite بامتداد .db مبنية من بيانات PostgreSQL الخاصة بك، جاهزة لتشغيل هذه اللوحة على SQLite."
+      "migrationDownloadPgDesc": "انقر لتنزيل قاعدة بيانات SQLite بامتداد .db مبنية من بيانات PostgreSQL الخاصة بك، جاهزة لتشغيل هذه اللوحة على SQLite.",
+      "openSockets": "open sockets",
+      "throughputSub": "2m window",
+      "avgWindow": "Avg (2m)",
+      "avg": "AVG",
+      "peak": "PEAK",
+      "free": "FREE",
+      "uptime": "Uptime",
+      "panel": "Panel",
+      "healthCritical": "High utilization: {list}",
+      "healthWarm": "Elevated utilization: {list}"
     },
     "inbounds": {
       "title": "الواردات",

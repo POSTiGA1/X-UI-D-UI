@@ -274,7 +274,17 @@
       "importDatabasePgDesc": "PostgreSQL veritabanınızı geri yüklemek için bir .dump dosyası seçip yüklemek üzere tıklayın. Bu, tüm mevcut verilerin yerini alır.",
       "migrationDownload": "Geçiş Dosyasını İndir",
       "migrationDownloadDesc": "SQLite veritabanınızın taşınabilir .dump (SQL metni) yedeğini indirmek için tıklayın.",
-      "migrationDownloadPgDesc": "PostgreSQL verilerinizden oluşturulan ve bu paneli SQLite üzerinde çalıştırmaya hazır bir .db SQLite veritabanı indirmek için tıklayın."
+      "migrationDownloadPgDesc": "PostgreSQL verilerinizden oluşturulan ve bu paneli SQLite üzerinde çalıştırmaya hazır bir .db SQLite veritabanı indirmek için tıklayın.",
+      "openSockets": "open sockets",
+      "throughputSub": "2m window",
+      "avgWindow": "Avg (2m)",
+      "avg": "AVG",
+      "peak": "PEAK",
+      "free": "FREE",
+      "uptime": "Uptime",
+      "panel": "Panel",
+      "healthCritical": "High utilization: {list}",
+      "healthWarm": "Elevated utilization: {list}"
     },
     "inbounds": {
       "title": "Gelen Bağlantılar",

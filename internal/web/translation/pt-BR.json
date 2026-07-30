@@ -274,7 +274,17 @@
       "importDatabasePgDesc": "Clique para selecionar e enviar um arquivo .dump para restaurar seu banco de dados PostgreSQL. Isso substitui todos os dados atuais.",
       "migrationDownload": "Baixar migração",
       "migrationDownloadDesc": "Clique para baixar uma exportação portátil .dump (texto SQL) do seu banco de dados SQLite.",
-      "migrationDownloadPgDesc": "Clique para baixar um banco de dados SQLite .db criado a partir dos seus dados do PostgreSQL, pronto para executar este painel no SQLite."
+      "migrationDownloadPgDesc": "Clique para baixar um banco de dados SQLite .db criado a partir dos seus dados do PostgreSQL, pronto para executar este painel no SQLite.",
+      "openSockets": "open sockets",
+      "throughputSub": "2m window",
+      "avgWindow": "Avg (2m)",
+      "avg": "AVG",
+      "peak": "PEAK",
+      "free": "FREE",
+      "uptime": "Uptime",
+      "panel": "Panel",
+      "healthCritical": "High utilization: {list}",
+      "healthWarm": "Elevated utilization: {list}"
     },
     "inbounds": {
       "title": "Entradas",

@@ -698,6 +698,15 @@ export class TimeFormatter {
     const remain = Number(((second / 3600) - (day * 24)).toFixed(0));
     return day + 'd' + (remain > 0 ? ' ' + remain + 'h' : '');
   }
+
+  static formatClock(second: number): string {
+    if (!second) return '';
+    const date = new Date(second * 1000);
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${hours}:${minutes}:${seconds}`;
+  }
 }
 
 export class NumberFormatter {
