@@ -123,22 +123,48 @@ export default function IndexPage() {
   const stopXray = useCallback(async () => {
     setBusy({ busy: true, tip: t('pages.index.stoppingXray', { defaultValue: 'Stopping Xray...' }) });
     try {
-      await HttpUtil.post('/panel/api/server/stopXrayService');
-      await refresh();
+      const res = await HttpUtil.post('/panel/api/server/stopXrayService', undefined, { silent: true });
+      if (res?.success) {
+        messageApi.success(res.msg || t('pages.index.stoppedSuccess', { defaultValue: 'Xray stopped successfully.' }));
+      } else {
+        messageApi.info(t('pages.index.stopXrayNotice', { defaultValue: 'Xray service is stopping.' }));
+      }
+    } catch {
+      messageApi.info(t('pages.index.stopXrayNotice', { defaultValue: 'Xray service is stopping.' }));
     } finally {
-      setBusy({ busy: false });
+      setTimeout(async () => {
+        try {
+          await refresh();
+        } catch {
+          // ignore transient errors during xray stop
+        }
+        setBusy({ busy: false });
+      }, 1000);
     }
-  }, [refresh, setBusy, t]);
+  }, [messageApi, refresh, setBusy, t]);
 
   const restartXray = useCallback(async () => {
     setBusy({ busy: true, tip: t('pages.index.restartingXray', { defaultValue: 'Restarting Xray...' }) });
     try {
-      await HttpUtil.post('/panel/api/server/restartXrayService');
-      await refresh();
+      const res = await HttpUtil.post('/panel/api/server/restartXrayService', undefined, { silent: true });
+      if (res?.success) {
+        messageApi.success(res.msg || t('pages.index.restartedSuccess', { defaultValue: 'Xray restarted successfully.' }));
+      } else {
+        messageApi.info(t('pages.index.restartingXrayNotice', { defaultValue: 'Xray service is restarting. Connection may briefly pause.' }));
+      }
+    } catch {
+      messageApi.info(t('pages.index.restartingXrayNotice', { defaultValue: 'Xray service is restarting. Connection may briefly pause.' }));
     } finally {
-      setBusy({ busy: false });
+      setTimeout(async () => {
+        try {
+          await refresh();
+        } catch {
+          // ignore transient errors during xray restart
+        }
+        setBusy({ busy: false });
+      }, 1500);
     }
-  }, [refresh, setBusy, t]);
+  }, [messageApi, refresh, setBusy, t]);
 
   async function handleChannelChange(dev: boolean) {
     const res = await HttpUtil.post('/panel/api/server/setUpdateChannel', { dev });

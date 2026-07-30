@@ -288,7 +288,13 @@
       "restartXrayConfirm": "آیا از راه‌اندازی مجدد سرویس Xray اطمینان دارید؟",
       "stopXrayConfirm": "آیا از توقف سرویس Xray اطمینان دارید؟",
       "restartingXray": "در حال راه‌اندازی مجدد Xray...",
-      "stoppingXray": "در حال توقف Xray..."
+      "stoppingXray": "در حال توقف Xray...",
+      "refreshStats": "بروزرسانی آمار",
+      "refreshed": "آمار بروزرسانی شد",
+      "restartingXrayNotice": "سرویس Xray در حال راه‌اندازی مجدد است. ممکن است اتصال لحظه‌ای قطع شود.",
+      "stopXrayNotice": "سرویس Xray در حال توقف است.",
+      "restartedSuccess": "سرویس Xray با موفقیت راه‌اندازی مجدد شد.",
+      "stoppedSuccess": "سرویس Xray با موفقیت متوقف شد."
     },
     "inbounds": {
       "title": "ورودی‌ها",

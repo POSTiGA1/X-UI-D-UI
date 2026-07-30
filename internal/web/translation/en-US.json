@@ -288,7 +288,13 @@
       "restartXrayConfirm": "Are you sure you want to restart Xray service?",
       "stopXrayConfirm": "Are you sure you want to stop Xray service?",
       "restartingXray": "Restarting Xray...",
-      "stoppingXray": "Stopping Xray..."
+      "stoppingXray": "Stopping Xray...",
+      "refreshStats": "Refresh Stats",
+      "refreshed": "Status refreshed",
+      "restartingXrayNotice": "Xray service is restarting. Connection may briefly pause.",
+      "stopXrayNotice": "Xray service is stopping.",
+      "restartedSuccess": "Xray restarted successfully.",
+      "stoppedSuccess": "Xray stopped successfully."
     },
     "inbounds": {
       "title": "Inbounds",
