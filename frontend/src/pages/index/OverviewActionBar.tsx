@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Tag, Tooltip } from 'antd';
+import { Button, Popconfirm, Tag, Tooltip } from 'antd';
 import {
   ArrowUpOutlined,
   AreaChartOutlined,
@@ -41,6 +41,7 @@ interface BarAction {
   icon: ReactNode;
   text: string;
   onClick: () => void;
+  confirmTitle?: string;
   primary?: boolean;
 }
 
@@ -75,8 +76,21 @@ export default function OverviewActionBar({
 
   const actionGroups: BarAction[][] = [
     [
-      { key: 'restart', icon: <ReloadOutlined />, text: t('pages.index.restartXray'), onClick: onRestartXray, primary: true },
-      { key: 'stop', icon: <PoweroffOutlined />, text: t('pages.index.stopXray'), onClick: onStopXray },
+      {
+        key: 'restart',
+        icon: <ReloadOutlined />,
+        text: t('pages.index.restartXray'),
+        onClick: onRestartXray,
+        confirmTitle: t('pages.index.restartXrayConfirm', { defaultValue: 'Are you sure you want to restart Xray service?' }),
+        primary: true,
+      },
+      {
+        key: 'stop',
+        icon: <PoweroffOutlined />,
+        text: t('pages.index.stopXray'),
+        onClick: onStopXray,
+        confirmTitle: t('pages.index.stopXrayConfirm', { defaultValue: 'Are you sure you want to stop Xray service?' }),
+      },
     ],
     [
       { key: 'logs', icon: <BarsOutlined />, text: t('pages.index.logs'), onClick: onOpenLogs },
@@ -141,20 +155,45 @@ export default function OverviewActionBar({
         {actionGroups.map((group, groupIndex) => (
           <Fragment key={group[0].key}>
             {groupIndex > 0 && <span className="ov-bar-sep" />}
-            {group.map((action) => (
-              <Button
-                key={action.key}
-                type={action.primary ? undefined : 'text'}
-                color={action.primary ? 'primary' : undefined}
-                variant={action.primary ? 'outlined' : undefined}
-                size={size}
-                icon={action.icon}
-                aria-label={action.text}
-                onClick={action.onClick}
-              >
-                {isMobile ? undefined : action.text}
-              </Button>
-            ))}
+            {group.map((action) => {
+              const btnNode = (
+                <Button
+                  type={action.primary ? undefined : 'text'}
+                  color={action.primary ? 'primary' : undefined}
+                  variant={action.primary ? 'outlined' : undefined}
+                  size={size}
+                  icon={action.icon}
+                  aria-label={action.text}
+                  onClick={action.confirmTitle ? undefined : action.onClick}
+                >
+                  {isMobile ? undefined : action.text}
+                </Button>
+              );
+
+              const wrappedBtn = isMobile ? (
+                <Tooltip key={action.key} title={action.text}>
+                  {btnNode}
+                </Tooltip>
+              ) : (
+                btnNode
+              );
+
+              if (action.confirmTitle) {
+                return (
+                  <Popconfirm
+                    key={action.key}
+                    title={action.confirmTitle}
+                    onConfirm={action.onClick}
+                    okText={t('sure', { defaultValue: 'Yes' })}
+                    cancelText={t('cancel', { defaultValue: 'Cancel' })}
+                  >
+                    {wrappedBtn}
+                  </Popconfirm>
+                );
+              }
+
+              return <Fragment key={action.key}>{wrappedBtn}</Fragment>;
+            })}
           </Fragment>
         ))}
       </div>

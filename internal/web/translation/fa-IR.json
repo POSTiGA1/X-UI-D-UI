@@ -284,7 +284,11 @@
       "uptime": "زمان فعالیت",
       "panel": "پنل",
       "healthCritical": "استفاده بالا: {list}",
-      "healthWarm": "استفاده نسبتاً بالا: {list}"
+      "healthWarm": "استفاده نسبتاً بالا: {list}",
+      "restartXrayConfirm": "آیا از راه‌اندازی مجدد سرویس Xray اطمینان دارید؟",
+      "stopXrayConfirm": "آیا از توقف سرویس Xray اطمینان دارید؟",
+      "restartingXray": "در حال راه‌اندازی مجدد Xray...",
+      "stoppingXray": "در حال توقف Xray..."
     },
     "inbounds": {
       "title": "ورودی‌ها",

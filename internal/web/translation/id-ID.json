@@ -284,7 +284,11 @@
       "uptime": "Uptime",
       "panel": "Panel",
       "healthCritical": "High utilization: {list}",
-      "healthWarm": "Elevated utilization: {list}"
+      "healthWarm": "Elevated utilization: {list}",
+      "restartXrayConfirm": "Are you sure you want to restart Xray service?",
+      "stopXrayConfirm": "Are you sure you want to stop Xray service?",
+      "restartingXray": "Restarting Xray...",
+      "stoppingXray": "Stopping Xray..."
     },
     "inbounds": {
       "title": "Inbound",
