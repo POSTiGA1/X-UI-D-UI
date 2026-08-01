@@ -20,6 +20,10 @@ export const SCHEMAS: Record<string, unknown> = {
         "description": "URI for external traffic reporting",
         "type": "string"
       },
+      "ipLimitPolicy": {
+        "description": "Policy for IP limit enforcement: kick_oldest or block_newest",
+        "type": "string"
+      },
       "ldapAutoCreate": {
         "type": "boolean"
       },
@@ -395,6 +399,7 @@ export const SCHEMAS: Record<string, unknown> = {
       "expireDiff",
       "externalTrafficInformEnable",
       "externalTrafficInformURI",
+      "ipLimitPolicy",
       "ldapAutoCreate",
       "ldapAutoDelete",
       "ldapBaseDN",
@@ -528,6 +533,10 @@ export const SCHEMAS: Record<string, unknown> = {
       },
       "hasWarpSecret": {
         "type": "boolean"
+      },
+      "ipLimitPolicy": {
+        "description": "Policy for IP limit enforcement: kick_oldest or block_newest",
+        "type": "string"
       },
       "ldapAutoCreate": {
         "type": "boolean"
@@ -911,6 +920,7 @@ export const SCHEMAS: Record<string, unknown> = {
       "hasTgBotToken",
       "hasTwoFactorToken",
       "hasWarpSecret",
+      "ipLimitPolicy",
       "ldapAutoCreate",
       "ldapAutoDelete",
       "ldapBaseDN",

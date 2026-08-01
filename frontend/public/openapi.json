@@ -46,6 +46,10 @@
             "description": "URI for external traffic reporting",
             "type": "string"
           },
+          "ipLimitPolicy": {
+            "description": "Policy for IP limit enforcement: kick_oldest or block_newest",
+            "type": "string"
+          },
           "ldapAutoCreate": {
             "type": "boolean"
           },
@@ -421,6 +425,7 @@
           "expireDiff",
           "externalTrafficInformEnable",
           "externalTrafficInformURI",
+          "ipLimitPolicy",
           "ldapAutoCreate",
           "ldapAutoDelete",
           "ldapBaseDN",
@@ -554,6 +559,10 @@
           },
           "hasWarpSecret": {
             "type": "boolean"
+          },
+          "ipLimitPolicy": {
+            "description": "Policy for IP limit enforcement: kick_oldest or block_newest",
+            "type": "string"
           },
           "ldapAutoCreate": {
             "type": "boolean"
@@ -937,6 +946,7 @@
           "hasTgBotToken",
           "hasTwoFactorToken",
           "hasWarpSecret",
+          "ipLimitPolicy",
           "ldapAutoCreate",
           "ldapAutoDelete",
           "ldapBaseDN",

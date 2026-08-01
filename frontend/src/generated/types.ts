@@ -11,6 +11,7 @@ export interface AllSetting {
   expireDiff: number;
   externalTrafficInformEnable: boolean;
   externalTrafficInformURI: string;
+  ipLimitPolicy: string;
   ldapAutoCreate: boolean;
   ldapAutoDelete: boolean;
   ldapBaseDN: string;
@@ -115,6 +116,7 @@ export interface AllSettingView {
   hasTgBotToken: boolean;
   hasTwoFactorToken: boolean;
   hasWarpSecret: boolean;
+  ipLimitPolicy: string;
   ldapAutoCreate: boolean;
   ldapAutoDelete: boolean;
   ldapBaseDN: string;
