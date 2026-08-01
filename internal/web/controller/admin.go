@@ -15,6 +15,7 @@ import (
 	"github.com/mdaltoon10/D-UI/v3/internal/web/service"
 	"github.com/mdaltoon10/D-UI/v3/internal/web/service/panel"
 	"github.com/mdaltoon10/D-UI/v3/internal/web/session"
+	"gorm.io/gorm"
 )
 
 type AdminController struct {
@@ -424,6 +425,8 @@ func (a *AdminController) selfUpdate(c *gin.Context) {
 			return
 		}
 
+		oldUsername := admin.Username
+
 		// If modifying username or password, verify old password
 		if form.NewUsername != "" || form.NewPassword != "" {
 			if !crypto.CheckPasswordHash(admin.Password, form.OldPassword) {
@@ -464,7 +467,18 @@ func (a *AdminController) selfUpdate(c *gin.Context) {
 			admin.Password = hashed
 		}
 
-		if err := db.Save(&admin).Error; err != nil {
+		err := db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Save(&admin).Error; err != nil {
+				return err
+			}
+			if oldUsername != admin.Username {
+				if err := tx.Model(&model.ClientRecord{}).Where("created_by = ?", oldUsername).Update("created_by", admin.Username).Error; err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
 			c.JSON(http.StatusOK, gin.H{"success": false, "msg": "Failed to update profile", "error": err.Error()})
 			return
 		}

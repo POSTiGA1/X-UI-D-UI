@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mdaltoon10/D-UI/v3/internal/database"
 	"github.com/mdaltoon10/D-UI/v3/internal/database/model"
+	"gorm.io/gorm"
 )
 
 type AdminService struct{}
@@ -133,6 +134,7 @@ func (s *AdminService) UpdateAdmin(admin *model.ResellerAdmin) error {
 		return errors.New("admin with this username, web_path or remark already exists")
 	}
 
+	oldUsername := existing.Username
 	existing.Username = admin.Username
 	existing.Remark = admin.Remark
 	if admin.Password != "" {
@@ -146,7 +148,17 @@ func (s *AdminService) UpdateAdmin(admin *model.ResellerAdmin) error {
 	existing.Enable = admin.Enable
 	existing.ExpiryTime = admin.ExpiryTime
 
-	return db.Save(&existing).Error
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&existing).Error; err != nil {
+			return err
+		}
+		if oldUsername != admin.Username {
+			if err := tx.Model(&model.ClientRecord{}).Where("created_by = ?", oldUsername).Update("created_by", admin.Username).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (s *AdminService) DeleteAdmin(id string) error {
