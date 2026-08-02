@@ -301,7 +301,7 @@ func (s *InboundService) autoRenewClients(tx *gorm.DB) (bool, int64, error) {
 	// attached to, so it could be a node inbound even when the client also has
 	// local inbounds. The email-based join through client_inbounds is authoritative.
 	err = tx.Model(xray.ClientTraffic{}).
-		Where("reset > 0 and expiry_time > 0 and expiry_time <= ?", now).
+		Where("reset > 0 AND expiry_time > 0 AND ((expiry_time >= 1000000000000 AND expiry_time <= ?) OR (expiry_time < 1000000000000 AND expiry_time * 1000 <= ?))", now, now).
 		Where("email IN (?)", tx.Table("client_inbounds ci").
 			Select("c.email").
 			Joins("JOIN clients c ON c.id = ci.client_id").
@@ -377,6 +377,9 @@ func (s *InboundService) autoRenewClients(tx *gorm.DB) (bool, int64, error) {
 				continue
 			}
 			newExpiryTime := traffic.ExpiryTime
+			if newExpiryTime > 0 && newExpiryTime < 1000000000000 {
+				newExpiryTime *= 1000
+			}
 			for newExpiryTime < now {
 				newExpiryTime += (int64(traffic.Reset) * 86400000)
 			}
@@ -466,17 +469,17 @@ func (s *InboundService) AddClientStat(tx *gorm.DB, inboundId int, client *model
 }
 
 func (s *InboundService) UpdateClientStat(tx *gorm.DB, email string, client *model.Client) error {
-	result := tx.Model(xray.ClientTraffic{}).
-		Where("email = ?", email).
-		Updates(map[string]any{
-			"enable":      client.Enable,
-			"email":       client.Email,
-			"total":       client.TotalGB,
-			"expiry_time": client.ExpiryTime,
-			"reset":       client.Reset,
-		})
-	err := result.Error
-	return err
+	ct := xray.ClientTraffic{
+		Email:      client.Email,
+		Total:      client.TotalGB,
+		ExpiryTime: client.ExpiryTime,
+		Enable:     client.Enable,
+		Reset:      client.Reset,
+	}
+	return tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "email"}},
+		DoUpdates: clause.AssignmentColumns([]string{"enable", "total", "expiry_time", "reset"}),
+	}).Create(&ct).Error
 }
 
 func (s *InboundService) DelClientStat(tx *gorm.DB, email string) error {

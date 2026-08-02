@@ -126,6 +126,15 @@ func (s *ClientService) SyncInbound(tx *gorm.DB, inboundId int, clients []model.
 			UpdateColumn("updated_at", preservedUpdatedAt).Error; err != nil {
 			return err
 		}
+		if err := tx.Model(&xray.ClientTraffic{}).Where("email = ?", email).
+			Updates(map[string]any{
+				"total":       row.TotalGB,
+				"expiry_time": row.ExpiryTime,
+				"enable":      row.Enable,
+				"reset":       row.Reset,
+			}).Error; err != nil {
+			logger.Warning("SyncInbound update client_traffics:", err)
+		}
 	}
 
 	if len(toCreate) > 0 {
@@ -134,6 +143,19 @@ func (s *ClientService) SyncInbound(tx *gorm.DB, inboundId int, clients []model.
 		}
 		for _, rec := range toCreate {
 			idByEmail[rec.Email] = rec.Id
+			ct := xray.ClientTraffic{
+				Email:      rec.Email,
+				Total:      rec.TotalGB,
+				ExpiryTime: rec.ExpiryTime,
+				Enable:     rec.Enable,
+				Reset:      rec.Reset,
+			}
+			if err := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "email"}},
+				DoUpdates: clause.AssignmentColumns([]string{"enable", "total", "expiry_time", "reset"}),
+			}).Create(&ct).Error; err != nil {
+				logger.Warning("SyncInbound create client_traffics:", err)
+			}
 		}
 	}
 

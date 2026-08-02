@@ -100,6 +100,9 @@ func initModels() error {
 	if err := normalizeApiTokenCreatedAtSeconds(); err != nil {
 		return err
 	}
+	if err := normalizeExpiryTimeSeconds(); err != nil {
+		return err
+	}
 	if err := dropLegacyForeignKeys(); err != nil {
 		return err
 	}
@@ -1344,6 +1347,27 @@ func normalizeApiTokenCreatedAtSeconds() error {
 	return db.Model(&model.ApiToken{}).
 		Where("created_at >= ?", model.ApiTokenUnixMillisecondsThreshold).
 		UpdateColumn("created_at", gorm.Expr("created_at / ?", 1000)).Error
+}
+
+// normalizeExpiryTimeSeconds converts legacy expiry_time timestamps stored in Unix seconds
+// (< 1,000,000,000,000) to Unix milliseconds so they correctly compare against time.Now().UnixMilli().
+func normalizeExpiryTimeSeconds() error {
+	if err := db.Model(&xray.ClientTraffic{}).
+		Where("expiry_time > 0 AND expiry_time < ?", int64(1000000000000)).
+		UpdateColumn("expiry_time", gorm.Expr("expiry_time * ?", 1000)).Error; err != nil {
+		return err
+	}
+	if err := db.Model(&model.ClientRecord{}).
+		Where("expiry_time > 0 AND expiry_time < ?", int64(1000000000000)).
+		UpdateColumn("expiry_time", gorm.Expr("expiry_time * ?", 1000)).Error; err != nil {
+		return err
+	}
+	if err := db.Model(&model.ResellerAdmin{}).
+		Where("expiry_time > 0 AND expiry_time < ?", int64(1000000000000)).
+		UpdateColumn("expiry_time", gorm.Expr("expiry_time * ?", 1000)).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 // sqliteSynchronous returns the SQLite synchronous mode, defaulting to FULL.

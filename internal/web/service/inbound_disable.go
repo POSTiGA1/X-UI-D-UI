@@ -56,7 +56,7 @@ func (s *InboundService) disableInvalidInbounds(tx *gorm.DB) (bool, int64, error
 // whose combined usage exceeds the quota even though the local share doesn't
 // (placeholders: now).
 const depletedClientsCond = `((total > 0 AND up + down >= total)
-	OR (expiry_time > 0 AND expiry_time <= ?)
+	OR (expiry_time > 0 AND ((expiry_time >= 1000000000000 AND expiry_time <= ?) OR (expiry_time < 1000000000000 AND expiry_time * 1000 <= ?)))
 	OR (total > 0 AND EXISTS (
 		SELECT 1 FROM client_global_traffics g
 		WHERE g.email = client_traffics.email AND g.up + g.down >= client_traffics.total
@@ -68,7 +68,7 @@ const depletedClientsCond = `((total > 0 AND up + down >= total)
 // master pushes to (the common case) client_global_traffics is empty, so the
 // branch can never match and is pure CPU cost (#5392).
 const depletedClientsCondLocal = `((total > 0 AND up + down >= total)
-	OR (expiry_time > 0 AND expiry_time <= ?))`
+	OR (expiry_time > 0 AND ((expiry_time >= 1000000000000 AND expiry_time <= ?) OR (expiry_time < 1000000000000 AND expiry_time * 1000 <= ?))))`
 
 // depletedCond returns the local-only predicate unless this panel actually
 // holds global-traffic rows, in which case the cross-panel EXISTS check is
@@ -233,7 +233,14 @@ func (s *InboundService) DisableInvalidResellers(tx *gorm.DB) (bool, int64, erro
 
 		limitBytes := admin.VolumeGB * 1024 * 1024 * 1024
 
-		isExpired := admin.ExpiryTime > 0 && admin.ExpiryTime <= now
+		isExpired := false
+		if admin.ExpiryTime > 0 {
+			expMs := admin.ExpiryTime
+			if expMs < 1000000000000 {
+				expMs *= 1000
+			}
+			isExpired = expMs <= now
+		}
 		isDepleted := admin.VolumeGB > 0 && trafficUsed >= limitBytes
 
 		if isExpired || isDepleted {
