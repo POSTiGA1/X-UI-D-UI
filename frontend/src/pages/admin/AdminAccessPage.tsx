@@ -312,7 +312,7 @@ export default function AdminAccessPage() {
   const handleAdminBulkAttach = async (inboundIds: number[]) => {
     if (!activeAdminForAttachDetach) return null;
     const res = await HttpUtil.post<BulkAttachResult>('/panel/api/admins/attach_inbounds', {
-      id: parseInt(activeAdminForAttachDetach.id),
+      id: activeAdminForAttachDetach.id,
       inboundIds,
     });
     return res.success ? (res.obj || {}) as BulkAttachResult : null;
@@ -321,7 +321,7 @@ export default function AdminAccessPage() {
   const handleAdminBulkDetach = async (inboundIds: number[]) => {
     if (!activeAdminForAttachDetach) return null;
     const res = await HttpUtil.post<BulkDetachResult>('/panel/api/admins/detach_inbounds', {
-      id: parseInt(activeAdminForAttachDetach.id),
+      id: activeAdminForAttachDetach.id,
       inboundIds,
     });
     return res.success ? (res.obj || {}) as BulkDetachResult : null;

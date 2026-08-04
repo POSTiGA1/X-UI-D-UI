@@ -374,8 +374,8 @@ func (a *AdminController) resetTraffic(c *gin.Context) {
 
 func (a *AdminController) attachInbounds(c *gin.Context) {
 	var form struct {
-		Id         int   `json:"id"`
-		InboundIds []int `json:"inboundIds"`
+		Id         string `json:"id"`
+		InboundIds []int  `json:"inboundIds"`
 	}
 	if err := c.ShouldBindJSON(&form); err != nil {
 		jsonMsg(c, "Invalid JSON", err)
@@ -384,7 +384,7 @@ func (a *AdminController) attachInbounds(c *gin.Context) {
 
 	isReseller := session.IsResellerLogin(c)
 	resellerId := session.GetLoginReseller(c)
-	if isReseller && resellerId != strconv.Itoa(form.Id) {
+	if isReseller && resellerId != form.Id {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"success": false, "msg": "Cannot modify inbounds for another reseller"})
 		return
 	}
@@ -418,14 +418,15 @@ func (a *AdminController) attachInbounds(c *gin.Context) {
 	if needRestart {
 		a.xrayService.SetToNeedRestart()
 	}
+	notifyClientsChanged()
 
 	jsonObj(c, result, nil)
 }
 
 func (a *AdminController) detachInbounds(c *gin.Context) {
 	var form struct {
-		Id         int   `json:"id"`
-		InboundIds []int `json:"inboundIds"`
+		Id         string `json:"id"`
+		InboundIds []int  `json:"inboundIds"`
 	}
 	if err := c.ShouldBindJSON(&form); err != nil {
 		jsonMsg(c, "Invalid JSON", err)
@@ -434,7 +435,7 @@ func (a *AdminController) detachInbounds(c *gin.Context) {
 
 	isReseller := session.IsResellerLogin(c)
 	resellerId := session.GetLoginReseller(c)
-	if isReseller && resellerId != strconv.Itoa(form.Id) {
+	if isReseller && resellerId != form.Id {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"success": false, "msg": "Cannot modify inbounds for another reseller"})
 		return
 	}
@@ -468,6 +469,7 @@ func (a *AdminController) detachInbounds(c *gin.Context) {
 	if needRestart {
 		a.xrayService.SetToNeedRestart()
 	}
+	notifyClientsChanged()
 
 	jsonObj(c, result, nil)
 }
