@@ -372,6 +372,106 @@ func (a *AdminController) resetTraffic(c *gin.Context) {
 	jsonMsg(c, "Traffic reset successfully", nil)
 }
 
+func (a *AdminController) attachInbounds(c *gin.Context) {
+	var form struct {
+		Id         int   `json:"id"`
+		InboundIds []int `json:"inboundIds"`
+	}
+	if err := c.ShouldBindJSON(&form); err != nil {
+		jsonMsg(c, "Invalid JSON", err)
+		return
+	}
+
+	isReseller := session.IsResellerLogin(c)
+	resellerId := session.GetLoginReseller(c)
+	if isReseller && resellerId != strconv.Itoa(form.Id) {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"success": false, "msg": "Cannot modify inbounds for another reseller"})
+		return
+	}
+
+	db := database.GetDB()
+	var admin model.ResellerAdmin
+	if err := db.Where("id = ?", form.Id).First(&admin).Error; err != nil {
+		jsonMsg(c, "Admin not found", err)
+		return
+	}
+
+	var clients []model.ClientRecord
+	if err := db.Where("created_by = ?", admin.Username).Find(&clients).Error; err != nil {
+		jsonMsg(c, "Failed to get admin clients", err)
+		return
+	}
+
+	emails := make([]string, 0, len(clients))
+	for _, cl := range clients {
+		if cl.Email != "" {
+			emails = append(emails, cl.Email)
+		}
+	}
+
+	result, needRestart, err := a.clientService.BulkAttach(&a.inboundService, emails, form.InboundIds)
+	if err != nil {
+		jsonMsg(c, "Failed to attach inbounds", err)
+		return
+	}
+
+	if needRestart {
+		a.xrayService.SetToNeedRestart()
+	}
+
+	jsonObj(c, result, nil)
+}
+
+func (a *AdminController) detachInbounds(c *gin.Context) {
+	var form struct {
+		Id         int   `json:"id"`
+		InboundIds []int `json:"inboundIds"`
+	}
+	if err := c.ShouldBindJSON(&form); err != nil {
+		jsonMsg(c, "Invalid JSON", err)
+		return
+	}
+
+	isReseller := session.IsResellerLogin(c)
+	resellerId := session.GetLoginReseller(c)
+	if isReseller && resellerId != strconv.Itoa(form.Id) {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"success": false, "msg": "Cannot modify inbounds for another reseller"})
+		return
+	}
+
+	db := database.GetDB()
+	var admin model.ResellerAdmin
+	if err := db.Where("id = ?", form.Id).First(&admin).Error; err != nil {
+		jsonMsg(c, "Admin not found", err)
+		return
+	}
+
+	var clients []model.ClientRecord
+	if err := db.Where("created_by = ?", admin.Username).Find(&clients).Error; err != nil {
+		jsonMsg(c, "Failed to get admin clients", err)
+		return
+	}
+
+	emails := make([]string, 0, len(clients))
+	for _, cl := range clients {
+		if cl.Email != "" {
+			emails = append(emails, cl.Email)
+		}
+	}
+
+	result, needRestart, err := a.clientService.BulkDetach(&a.inboundService, emails, form.InboundIds)
+	if err != nil {
+		jsonMsg(c, "Failed to detach inbounds", err)
+		return
+	}
+
+	if needRestart {
+		a.xrayService.SetToNeedRestart()
+	}
+
+	jsonObj(c, result, nil)
+}
+
 type selfUpdateForm struct {
 	OldPassword     string `json:"oldPassword"`
 	NewUsername     string `json:"newUsername"`
