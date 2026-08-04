@@ -314,8 +314,12 @@ export default function AdminAccessPage() {
     const res = await HttpUtil.post<BulkAttachResult>('/panel/api/admins/attach_inbounds', {
       id: activeAdminForAttachDetach.id,
       inboundIds,
-    });
-    return res.success ? (res.obj || {}) as BulkAttachResult : null;
+    }, { headers: { 'Content-Type': 'application/json' } });
+    if (res.success) {
+      fetchAdmins();
+      return (res.obj || { attached: [], skipped: [], errors: [] }) as BulkAttachResult;
+    }
+    return null;
   };
 
   const handleAdminBulkDetach = async (inboundIds: number[]) => {
@@ -323,8 +327,12 @@ export default function AdminAccessPage() {
     const res = await HttpUtil.post<BulkDetachResult>('/panel/api/admins/detach_inbounds', {
       id: activeAdminForAttachDetach.id,
       inboundIds,
-    });
-    return res.success ? (res.obj || {}) as BulkDetachResult : null;
+    }, { headers: { 'Content-Type': 'application/json' } });
+    if (res.success) {
+      fetchAdmins();
+      return (res.obj || { detached: [], skipped: [], errors: [] }) as BulkDetachResult;
+    }
+    return null;
   };
 
   const handleCopyLink = (webPath: string) => {

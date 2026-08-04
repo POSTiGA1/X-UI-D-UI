@@ -12,26 +12,17 @@ import {
 import {
   CopyOutlined,
   CloudDownloadOutlined,
-  DashboardOutlined,
-  DatabaseOutlined,
-  HddOutlined,
-  SwapOutlined,
 } from '@ant-design/icons';
 
-import { HttpUtil, CPUFormatter, SizeFormatter, ClipboardManager, FileManager } from '@/utils';
-import { USAGE_CRIT_COLOR, USAGE_CRIT_PERCENT, USAGE_WARN_COLOR, USAGE_WARN_PERCENT } from '@/models/status';
+import { HttpUtil, ClipboardManager, FileManager } from '@/utils';
 import { useTheme } from '@/hooks/useTheme';
 import { useStatusQuery } from '@/api/queries/useStatusQuery';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import AppSidebar from '@/layouts/AppSidebar';
 import { LazyMount } from '@/components/utility';
 import { setMessageInstance } from '@/utils/messageBus';
-import OverviewActionBar from './OverviewActionBar';
-import VitalTile from './VitalTile';
-import ThroughputCard from './ThroughputCard';
-import ConnectionsCard from './ConnectionsCard';
-import SystemStrip from './SystemStrip';
-import { mean, peak, useOverviewHistory } from './useOverviewHistory';
+import StatusCard from './StatusCard';
+import XrayStatusCard from './XrayStatusCard';
 import type { PanelUpdateInfo } from './PanelUpdateModal';
 import ResellerDashboard from './ResellerDashboard';
 
@@ -63,7 +54,6 @@ export default function IndexPage() {
 
   const basePath = window.X_UI_BASE_PATH || '';
 
-  const [showIp, setShowIp] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
   const [panelUpdateOpen, setPanelUpdateOpen] = useState(false);
@@ -75,8 +65,6 @@ export default function IndexPage() {
   const [configText, setConfigText] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingTip, setLoadingTip] = useState(t('loading'));
-
-  const history = useOverviewHistory(status, fetched && !fetchError);
 
   useEffect(() => {
     HttpUtil.post<{ accessLogEnable?: boolean; devChannelEnable?: boolean }>(
@@ -107,11 +95,6 @@ export default function IndexPage() {
     return '{}';
   }, []);
 
-  const displayVersion = useMemo(
-    () => window.X_UI_CUR_VER || panelUpdateInfo.currentVersion || '?',
-    [panelUpdateInfo.currentVersion],
-  );
-
   const setBusy = useCallback(
     ({ busy, tip }: { busy: boolean; tip?: string }) => {
       setLoading(busy);
@@ -136,7 +119,7 @@ export default function IndexPage() {
         try {
           await refresh();
         } catch {
-          // ignore transient errors during xray stop
+          // ignore
         }
         setBusy({ busy: false });
       }, 1000);
@@ -159,7 +142,7 @@ export default function IndexPage() {
         try {
           await refresh();
         } catch {
-          // ignore transient errors during xray restart
+          // ignore
         }
         setBusy({ busy: false });
       }, 1500);
@@ -174,18 +157,6 @@ export default function IndexPage() {
     if (msg?.success && msg.obj) setPanelUpdateInfo(msg.obj);
   }
 
-  async function openConfig() {
-    setLoading(true);
-    try {
-      const msg = await HttpUtil.get('/panel/api/server/getConfigJson');
-      if (!msg?.success) return;
-      setConfigText(JSON.stringify(msg.obj, null, 2));
-      setConfigTextOpen(true);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function copyConfig() {
     const ok = await ClipboardManager.copyText(configText || '');
     if (ok) messageApi.success('Copied');
@@ -196,24 +167,6 @@ export default function IndexPage() {
   }
 
   const pageClass = `index-page ${isDark ? 'is-dark' : ''} ${isUltra ? 'is-ultra' : ''}`.trim();
-
-  const totalDisk = status.disk.total;
-  const freeDisk = Math.max(0, totalDisk - status.disk.current);
-
-  const health = useMemo(() => {
-    const items = [
-      { name: t('pages.index.cpu'), value: status.cpu.percent },
-      { name: t('pages.index.memory'), value: status.mem.percent },
-      { name: t('pages.index.swap'), value: status.swap.percent },
-      { name: t('pages.index.storage'), value: status.disk.percent },
-    ];
-    const list = (xs: typeof items) => xs.map((i) => `${i.name} ${i.value.toFixed(0)}%`).join(', ');
-    const crit = items.filter((i) => i.value >= USAGE_CRIT_PERCENT);
-    if (crit.length) return { text: t('pages.index.healthCritical', { list: list(crit) }), color: USAGE_CRIT_COLOR };
-    const warm = items.filter((i) => i.value >= USAGE_WARN_PERCENT);
-    if (warm.length) return { text: t('pages.index.healthWarm', { list: list(warm) }), color: USAGE_WARN_COLOR };
-    return null;
-  }, [status, t]);
 
   return (
     <ConfigProvider theme={antdThemeConfig}>
@@ -241,108 +194,20 @@ export default function IndexPage() {
               ) : isReseller ? (
                 <ResellerDashboard currentAdminRaw={currentAdminRaw || '{}'} status={status} />
               ) : (
-                <div className="ov-page">
-                  <OverviewActionBar
-                    status={status}
-                    isMobile={isMobile}
-                    accessLogEnable={accessLogEnable}
-                    panelVersion={displayVersion}
-                    latestVersion={panelUpdateInfo.latestVersion}
-                    updateAvailable={panelUpdateInfo.updateAvailable}
-                    onStopXray={stopXray}
-                    onRestartXray={restartXray}
-                    onOpenLogs={() => setLogsOpen(true)}
-                    onOpenXrayLogs={() => setXrayLogsOpen(true)}
-                    onOpenConfig={openConfig}
-                    onOpenBackup={() => setBackupOpen(true)}
-                    onOpenSystemHistory={() => setSysHistoryOpen(true)}
-                    onOpenXrayMetrics={() => setXrayMetricsOpen(true)}
-                    onOpenPanelUpdate={() => setPanelUpdateOpen(true)}
-                    onOpenVersionSwitch={() => setVersionOpen(true)}
-                  />
-
-                  {health && (
-                    <div className="ov-health" style={{ color: health.color }}>
-                      <span className="ov-health-mark" />
-                      {health.text}
-                    </div>
-                  )}
-
-                  <hr className="ov-rule" />
-
-                  <div className="ov-vitals">
-                    <VitalTile
-                      icon={<DashboardOutlined />}
-                      label={t('pages.index.cpu')}
-                      percent={status.cpu.percent}
-                      statusColor={status.cpu.color}
-                      detail={`${CPUFormatter.cpuCoreFormat(status.cpuCores)} / ${status.logicalPro}T · ${CPUFormatter.cpuSpeedFormat(status.cpuSpeedMhz)}`}
-                      footLeft={`${t('pages.index.avg')} ${mean(history.series.cpu).toFixed(0)}%`}
-                      footRight={`${t('pages.index.peak')} ${peak(history.series.cpu).toFixed(0)}%`}
-                      data={history.series.cpu}
+                <div className="index-content">
+                  <StatusCard status={status} isMobile={isMobile} />
+                  <div style={{ marginTop: 16 }}>
+                    <XrayStatusCard
+                      status={status}
                       isMobile={isMobile}
-                    />
-
-                    <VitalTile
-                      icon={<DatabaseOutlined />}
-                      label={t('pages.index.memory')}
-                      percent={status.mem.percent}
-                      statusColor={status.mem.color}
-                      detail={`${SizeFormatter.sizeFormat(status.mem.current)} / ${SizeFormatter.sizeFormat(status.mem.total)}`}
-                      footLeft={`${t('pages.index.avg')} ${mean(history.series.mem).toFixed(0)}%`}
-                      footRight={`${t('pages.index.peak')} ${peak(history.series.mem).toFixed(0)}%`}
-                      data={history.series.mem}
-                      isMobile={isMobile}
-                    />
-
-                    <VitalTile
-                      icon={<SwapOutlined />}
-                      label={t('pages.index.swap')}
-                      percent={status.swap.percent}
-                      statusColor={status.swap.color}
-                      detail={`${SizeFormatter.sizeFormat(status.swap.current)} / ${SizeFormatter.sizeFormat(status.swap.total)}`}
-                      footLeft={`${t('pages.index.avg')} ${mean(history.series.swap).toFixed(1)}%`}
-                      footRight={`${t('pages.index.peak')} ${peak(history.series.swap).toFixed(0)}%`}
-                      data={history.series.swap}
-                      isMobile={isMobile}
-                    />
-
-                    <VitalTile
-                      icon={<HddOutlined />}
-                      label={t('pages.index.storage')}
-                      percent={status.disk.percent}
-                      statusColor={status.disk.color}
-                      detail={`${SizeFormatter.sizeFormat(status.disk.current)} / ${SizeFormatter.sizeFormat(totalDisk)}`}
-                      footLeft={`${t('pages.index.free')} ${SizeFormatter.sizeFormat(freeDisk)}`}
-                      footRight={`${t('pages.index.avg')} ${mean(history.series.diskUsage).toFixed(1)}%`}
-                      data={history.series.diskUsage}
-                      isMobile={isMobile}
+                      accessLogEnable={accessLogEnable}
+                      onStopXray={stopXray}
+                      onRestartXray={restartXray}
+                      onOpenLogs={() => setLogsOpen(true)}
+                      onOpenXrayLogs={() => setXrayLogsOpen(true)}
+                      onOpenVersionSwitch={() => setVersionOpen(true)}
                     />
                   </div>
-
-                  <div className="ov-mid">
-                    <ThroughputCard
-                      status={status}
-                      up={history.series.netUp}
-                      down={history.series.netDown}
-                      labels={history.labels}
-                      isMobile={isMobile}
-                    />
-
-                    <ConnectionsCard
-                      status={status}
-                      tcp={history.series.tcpCount}
-                      udp={history.series.udpCount}
-                      labels={history.labels}
-                      isMobile={isMobile}
-                    />
-                  </div>
-
-                  <SystemStrip
-                    status={status}
-                    showIp={showIp}
-                    onToggleIp={() => setShowIp((prev) => !prev)}
-                  />
                 </div>
               )}
             </Spin>

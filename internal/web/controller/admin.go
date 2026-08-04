@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -391,13 +392,27 @@ func (a *AdminController) attachInbounds(c *gin.Context) {
 
 	db := database.GetDB()
 	var admin model.ResellerAdmin
-	if err := db.Where("id = ?", form.Id).First(&admin).Error; err != nil {
-		jsonMsg(c, "Admin not found", err)
-		return
+	var targetUsername string
+
+	masterUser := session.GetLoginUser(c)
+	if masterUser != nil && (form.Id == strconv.Itoa(masterUser.Id) || form.Id == "1" || form.Id == "0") {
+		targetUsername = masterUser.Username
+	} else {
+		if err := db.Where("id = ?", form.Id).First(&admin).Error; err != nil {
+			jsonMsg(c, "Admin not found", err)
+			return
+		}
+		targetUsername = admin.Username
 	}
 
 	var clients []model.ClientRecord
-	if err := db.Where("created_by = ?", admin.Username).Find(&clients).Error; err != nil {
+	query := db.Model(&model.ClientRecord{})
+	if masterUser != nil && targetUsername == masterUser.Username {
+		query = query.Where("LOWER(created_by) = LOWER(?) OR created_by = '' OR created_by IS NULL", targetUsername)
+	} else {
+		query = query.Where("LOWER(created_by) = LOWER(?)", targetUsername)
+	}
+	if err := query.Find(&clients).Error; err != nil {
 		jsonMsg(c, "Failed to get admin clients", err)
 		return
 	}
@@ -409,10 +424,40 @@ func (a *AdminController) attachInbounds(c *gin.Context) {
 		}
 	}
 
-	result, needRestart, err := a.clientService.BulkAttach(&a.inboundService, emails, form.InboundIds)
+	targetInbounds := form.InboundIds
+
+	result, needRestart, err := a.clientService.BulkAttach(&a.inboundService, emails, targetInbounds)
 	if err != nil {
 		jsonMsg(c, "Failed to attach inbounds", err)
 		return
+	}
+
+	// Update admin.Inbounds field to ensure reseller record has access to newly attached inbounds
+	if admin.Id != "" {
+		var currentInbounds []int
+		if admin.Inbounds != "" {
+			if err := json.Unmarshal([]byte(admin.Inbounds), &currentInbounds); err != nil {
+				for _, idStr := range strings.Split(admin.Inbounds, ",") {
+					if id, err := strconv.Atoi(strings.TrimSpace(idStr)); err == nil {
+						currentInbounds = append(currentInbounds, id)
+					}
+				}
+			}
+		}
+		inboundMap := make(map[int]bool)
+		for _, id := range currentInbounds {
+			inboundMap[id] = true
+		}
+		for _, id := range targetInbounds {
+			inboundMap[id] = true
+		}
+		var updatedInbounds []int
+		for id := range inboundMap {
+			updatedInbounds = append(updatedInbounds, id)
+		}
+		sort.Ints(updatedInbounds)
+		inboundsJSON, _ := json.Marshal(updatedInbounds)
+		db.Model(&model.ResellerAdmin{}).Where("id = ?", admin.Id).Update("inbounds", string(inboundsJSON))
 	}
 
 	if needRestart {
@@ -442,13 +487,27 @@ func (a *AdminController) detachInbounds(c *gin.Context) {
 
 	db := database.GetDB()
 	var admin model.ResellerAdmin
-	if err := db.Where("id = ?", form.Id).First(&admin).Error; err != nil {
-		jsonMsg(c, "Admin not found", err)
-		return
+	var targetUsername string
+
+	masterUser := session.GetLoginUser(c)
+	if masterUser != nil && (form.Id == strconv.Itoa(masterUser.Id) || form.Id == "1" || form.Id == "0") {
+		targetUsername = masterUser.Username
+	} else {
+		if err := db.Where("id = ?", form.Id).First(&admin).Error; err != nil {
+			jsonMsg(c, "Admin not found", err)
+			return
+		}
+		targetUsername = admin.Username
 	}
 
 	var clients []model.ClientRecord
-	if err := db.Where("created_by = ?", admin.Username).Find(&clients).Error; err != nil {
+	query := db.Model(&model.ClientRecord{})
+	if masterUser != nil && targetUsername == masterUser.Username {
+		query = query.Where("LOWER(created_by) = LOWER(?) OR created_by = '' OR created_by IS NULL", targetUsername)
+	} else {
+		query = query.Where("LOWER(created_by) = LOWER(?)", targetUsername)
+	}
+	if err := query.Find(&clients).Error; err != nil {
 		jsonMsg(c, "Failed to get admin clients", err)
 		return
 	}
