@@ -39,6 +39,8 @@ func (a *AdminController) initRouter(g *gin.RouterGroup) {
 	g.POST("/add", a.add)
 	g.POST("/update", a.update)
 	g.POST("/delete", a.delete)
+	g.POST("/attach_inbounds", a.attachInbounds)
+	g.POST("/detach_inbounds", a.detachInbounds)
 	g.POST("/resetTraffic", a.resetTraffic)
 	g.GET("/self", a.self)
 	g.POST("/selfUpdate", a.selfUpdate)

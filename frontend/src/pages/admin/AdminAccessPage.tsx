@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import {
   Card,
   Button,
@@ -41,12 +41,18 @@ import {
   ExclamationCircleFilled,
   EyeOutlined,
   EyeInvisibleOutlined,
+  LinkOutlined,
+  DisconnectOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { HttpUtil, SizeFormatter, IntlUtil } from '@/utils';
 import { useTheme } from '@/hooks/useTheme';
 import AppSidebar from '@/layouts/AppSidebar';
 import '@/pages/clients/ClientsPage.css'; // Inherit all glorious dark theme styling!
+import type { BulkAttachResult, BulkDetachResult } from '@/schemas/client';
+
+const BulkAttachInboundsModal = lazy(() => import('@/pages/clients/BulkAttachInboundsModal'));
+const BulkDetachInboundsModal = lazy(() => import('@/pages/clients/BulkDetachInboundsModal'));
 
 interface ResellerAdmin {
   id: string;
@@ -159,6 +165,10 @@ export default function AdminAccessPage() {
   const [editingAdmin, setEditingAdmin] = useState<ResellerAdmin | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   
+  const [bulkAttachOpen, setBulkAttachOpen] = useState(false);
+  const [bulkDetachOpen, setBulkDetachOpen] = useState(false);
+  const [activeAdminForAttachDetach, setActiveAdminForAttachDetach] = useState<ResellerAdmin | null>(null);
+
   // Info details modal
   const [infoAdmin, setInfoAdmin] = useState<ResellerAdmin | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
@@ -297,6 +307,24 @@ export default function AdminAccessPage() {
       fetchAdmins();
     }
     setTogglingId(null);
+  };
+
+  const handleAdminBulkAttach = async (inboundIds: number[]) => {
+    if (!activeAdminForAttachDetach) return null;
+    const res = await HttpUtil.post<BulkAttachResult>('/panel/api/admins/attach_inbounds', {
+      id: parseInt(activeAdminForAttachDetach.id),
+      inboundIds,
+    });
+    return res.success ? (res.obj || {}) as BulkAttachResult : null;
+  };
+
+  const handleAdminBulkDetach = async (inboundIds: number[]) => {
+    if (!activeAdminForAttachDetach) return null;
+    const res = await HttpUtil.post<BulkDetachResult>('/panel/api/admins/detach_inbounds', {
+      id: parseInt(activeAdminForAttachDetach.id),
+      inboundIds,
+    });
+    return res.success ? (res.obj || {}) as BulkDetachResult : null;
   };
 
   const handleCopyLink = (webPath: string) => {
@@ -684,6 +712,22 @@ export default function AdminAccessPage() {
                               }
                             },
                             {
+                              key: 'attach',
+                              label: <><LinkOutlined /> {isFa ? 'الصاق کلاینت‌ها به اینباند' : 'Attach Clients to Inbounds'}</>,
+                              onClick: () => {
+                                setActiveAdminForAttachDetach(row);
+                                setBulkAttachOpen(true);
+                              }
+                            },
+                            {
+                              key: 'detach',
+                              label: <><DisconnectOutlined /> {isFa ? 'جداسازی کلاینت‌ها از اینباند' : 'Detach Clients from Inbounds'}</>,
+                              onClick: () => {
+                                setActiveAdminForAttachDetach(row);
+                                setBulkDetachOpen(true);
+                              }
+                            },
+                            {
                               key: 'delete',
                               danger: true,
                               label: <><DeleteOutlined /> {isFa ? 'حذف ادمین همکار' : 'Delete Reseller'}</>,
@@ -996,6 +1040,27 @@ export default function AdminAccessPage() {
           </div>
         )}
       </Modal>
+
+      <Suspense fallback={null}>
+        {bulkAttachOpen && (
+          <BulkAttachInboundsModal
+            open={bulkAttachOpen}
+            count={activeAdminForAttachDetach?.clientsCount || 0}
+            inbounds={inboundOptions}
+            onOpenChange={setBulkAttachOpen}
+            onSubmit={handleAdminBulkAttach}
+          />
+        )}
+        {bulkDetachOpen && (
+          <BulkDetachInboundsModal
+            open={bulkDetachOpen}
+            count={activeAdminForAttachDetach?.clientsCount || 0}
+            inbounds={inboundOptions}
+            onOpenChange={setBulkDetachOpen}
+            onSubmit={handleAdminBulkDetach}
+          />
+        )}
+      </Suspense>
           </Layout.Content>
         </Layout>
       </Layout>
