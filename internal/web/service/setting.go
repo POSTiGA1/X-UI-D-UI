@@ -29,6 +29,8 @@ import (
 	"github.com/mdaltoon10/D-UI/v3/internal/xray"
 )
 
+const DefaultTrustedProxyCIDRs = "127.0.0.1/32,::1/128"
+
 //go:embed config.json
 var xrayTemplateConfig string
 
@@ -446,6 +448,14 @@ func (s *SettingService) GetPanelOutbound() (string, error) {
 
 func (s *SettingService) SetPanelOutbound(tag string) error {
 	return s.setString("panelOutbound", tag)
+}
+
+func (s *SettingService) GetPia() (string, error) {
+	return s.getString("pia")
+}
+
+func (s *SettingService) SetPia(value string) error {
+	return s.setString("pia", value)
 }
 
 // PanelEgressProxyURL resolves the loopback SOCKS bridge that the generated
