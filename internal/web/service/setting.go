@@ -1286,6 +1286,7 @@ func extractHostname(host string) string {
 func (s *SettingService) BuildSubURIBase(host string) string {
 	subPort, _ := s.GetSubPort()
 	subDomain, _ := s.GetSubDomain()
+	subDomain = common.CleanDomainHost(subDomain)
 	subKeyFile, _ := s.GetSubKeyFile()
 	subCertFile, _ := s.GetSubCertFile()
 	subTLS := subKeyFile != "" && subCertFile != ""

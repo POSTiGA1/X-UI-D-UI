@@ -1,6 +1,9 @@
 package common
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestEnsureURLScheme(t *testing.T) {
 	tests := []struct {
@@ -25,5 +28,35 @@ func TestEnsureURLScheme(t *testing.T) {
 				t.Errorf("EnsureURLScheme(%q) = %q, want %q", tt.in, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCleanDomainHost(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"", ""},
+		{"   ", ""},
+		{"sub.example.com", "sub.example.com"},
+		{"https://sub.example.com", "sub.example.com"},
+		{"http://sub.example.com:2053/path?query=1#frag", "sub.example.com"},
+		{"Sub.Example.Com:8443/", "sub.example.com"},
+		{"127.0.0.1", "127.0.0.1"},
+		{"https://127.0.0.1:2053", "127.0.0.1"},
+	}
+	for _, tt := range tests {
+		if got := CleanDomainHost(tt.in); got != tt.want {
+			t.Errorf("CleanDomainHost(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestCleanDomainHosts(t *testing.T) {
+	in := " https://panel1.example.com:2053/ , panel2.example.com; sub.example.com "
+	want := []string{"panel1.example.com", "panel2.example.com", "sub.example.com"}
+	got := CleanDomainHosts(in)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("CleanDomainHosts(%q) = %v, want %v", in, got, want)
 	}
 }
