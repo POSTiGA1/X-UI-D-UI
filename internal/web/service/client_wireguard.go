@@ -49,7 +49,7 @@ func wireguardAllocationBase(used []string, fallback string) string {
 // allocateWireguardAddress returns the first free /32 host address in base that
 // is not already present in used. The server holds the first host (.1), so
 // allocation starts at the second host (.2).
-func allocateWireguardAddress(used []string, base string) (string, error) {
+func allocateWireguardAddress(used []string, base string, allowWidening ...bool) (string, error) {
 	if base == "" {
 		base = defaultWireguardBase
 	}

@@ -80,6 +80,8 @@ func initModels() error {
 		&model.ClientGlobalTraffic{},
 		&model.OutboundSubscription{},
 		&model.ResellerAdmin{},
+		&model.ClientHwid{},
+		&model.SubBalancer{},
 	}
 	for _, mdl := range models {
 		if IsPostgres() && postgresModelSettled(mdl) {

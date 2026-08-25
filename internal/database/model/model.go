@@ -1076,3 +1076,29 @@ func MergeClientRecord(existing *ClientRecord, incoming *ClientRecord) []ClientM
 	}
 	return conflicts
 }
+
+type ClientHwid struct {
+	Id          int    `json:"id" gorm:"primaryKey;autoIncrement"`
+	SubID       string `json:"subId" gorm:"column:sub_id;type:varchar(256);not null;index:idx_client_hwids_sub_last,priority:1;index:idx_client_hwids_sub_hash,priority:1,unique"`
+	HwidHash    string `json:"hwidHash" gorm:"column:hwid_hash;type:varchar(64);not null;index:idx_client_hwids_sub_hash,priority:2,unique"`
+	FirstSeen   int64  `json:"firstSeen" gorm:"column:first_seen;autoCreateTime:milli"`
+	LastSeen    int64  `json:"lastSeen" gorm:"column:last_seen;autoUpdateTime:milli;index:idx_client_hwids_sub_last,priority:2"`
+	UserAgent   string `json:"userAgent" gorm:"column:user_agent;type:text"`
+	DeviceOS    string `json:"deviceOs" gorm:"column:device_os;type:varchar(64)"`
+	OsVersion   string `json:"osVersion" gorm:"column:os_version;type:varchar(64)"`
+	DeviceModel string `json:"deviceModel" gorm:"column:device_model;type:varchar(128)"`
+}
+
+func (ClientHwid) TableName() string { return "client_hwids" }
+
+type SubBalancer struct {
+	Id         int    `json:"id" gorm:"primaryKey;autoIncrement"`
+	Remark     string `json:"remark" gorm:"column:remark;type:varchar(256);not null"`
+	Strategy   string `json:"strategy" gorm:"column:strategy;type:varchar(64);default:'random'"`
+	InboundIds []int  `json:"inboundIds" gorm:"column:inbound_ids;serializer:json"`
+	SortOrder  int    `json:"sortOrder" gorm:"column:sort_order;default:1"`
+	Enabled    bool   `json:"enabled" gorm:"column:enabled;default:true"`
+}
+
+func (SubBalancer) TableName() string { return "sub_balancers" }
+
