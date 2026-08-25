@@ -32,6 +32,7 @@ const (
 	WireGuard   Protocol = "wireguard"
 	Hysteria    Protocol = "hysteria"
 	MTProto     Protocol = "mtproto"
+	AmneziaWG   Protocol = "amneziawg"
 )
 
 // User represents a user account in the d-ui panel.
@@ -620,6 +621,8 @@ type Client struct {
 	Reset        int            `json:"reset" form:"reset"`           // Reset period in days
 	CreatedAt    int64          `json:"created_at,omitempty"`         // Creation timestamp
 	UpdatedAt    int64          `json:"updated_at,omitempty"`         // Last update timestamp
+	LimitHwid    int            `json:"limitHwid" form:"limitHwid"`
+	ForwardedPorts string       `json:"forwardedPorts,omitempty" form:"forwardedPorts"`
 }
 
 type ClientRecord struct {
@@ -650,6 +653,8 @@ type ClientRecord struct {
 	Reset        int    `json:"reset" gorm:"default:0"`
 	CreatedAt    int64  `json:"createdAt" gorm:"autoCreateTime:milli"`
 	UpdatedAt    int64  `json:"updatedAt" gorm:"autoUpdateTime:milli"`
+	LimitHwid    int    `json:"limitHwid" gorm:"column:limit_hwid;default:0"`
+	ForwardedPorts string `json:"forwardedPorts" gorm:"column:forwarded_ports;default:''"`
 }
 
 func (ClientRecord) TableName() string { return "clients" }
@@ -824,6 +829,8 @@ func (c *Client) ToRecord() *ClientRecord {
 		AllowedIPs:   strings.Join(c.AllowedIPs, ","),
 		PreSharedKey: c.PreSharedKey,
 		KeepAlive:    c.KeepAlive,
+		LimitHwid:    c.LimitHwid,
+		ForwardedPorts: c.ForwardedPorts,
 	}
 	if c.Reverse != nil {
 		if b, err := json.Marshal(c.Reverse); err == nil {
@@ -876,6 +883,8 @@ func (r *ClientRecord) ToClient() *Client {
 		AllowedIPs:   splitWireguardAllowedIPs(r.AllowedIPs),
 		PreSharedKey: r.PreSharedKey,
 		KeepAlive:    r.KeepAlive,
+		LimitHwid:    r.LimitHwid,
+		ForwardedPorts: r.ForwardedPorts,
 	}
 	if r.Reverse != "" {
 		var rev ClientReverse
