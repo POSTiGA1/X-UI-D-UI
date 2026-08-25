@@ -17,13 +17,21 @@ import (
 	"github.com/mdaltoon10/D-UI/v3/internal/logger"
 )
 
+// SecretEntry holds a named secret for mtproto.
+type SecretEntry struct {
+	Name   string `json:"name,omitempty"`
+	Secret string `json:"secret,omitempty"`
+	AdTag  string `json:"adTag,omitempty"`
+}
+
 // Instance is the desired runtime configuration of one mtproto inbound.
 type Instance struct {
-	Id     int
-	Tag    string
-	Listen string
-	Port   int
-	Secret string
+	Id      int
+	Tag     string
+	Listen  string
+	Port    int
+	Secret  string
+	Secrets []SecretEntry
 
 	// Optional mtg tuning; each is omitted from the generated TOML when
 	// zero-valued so mtg falls back to its own defaults.
@@ -52,9 +60,17 @@ func (inst Instance) bindTo() string {
 // fingerprint changes whenever any value that ends up in the generated TOML
 // changes, so ensureLocked restarts mtg when the operator edits a setting.
 func (inst Instance) fingerprint() string {
+	var sb strings.Builder
+	for _, sec := range inst.Secrets {
+		sb.WriteString(sec.Name)
+		sb.WriteString(":")
+		sb.WriteString(sec.Secret)
+		sb.WriteString(";")
+	}
 	return strings.Join([]string{
 		inst.bindTo(),
 		inst.Secret,
+		sb.String(),
 		strconv.FormatBool(inst.Debug),
 		strconv.FormatBool(inst.ProxyProtocolListener),
 		inst.PreferIP,
@@ -105,6 +121,16 @@ func GetManager() *Manager {
 	return manager
 }
 
+// HasRunning returns true if any mtg processes are currently managed.
+func (m *Manager) HasRunning() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.procs) > 0
+}
+
+// ResetQuota is a no-op placeholder for client quota reset in mtg.
+func (m *Manager) ResetQuota(email string) {}
+
 // InstanceFromInbound derives a desired Instance from an mtproto inbound,
 // healing the FakeTLS secret so it always matches the configured domain.
 // Returns false when the inbound is not a usable mtproto inbound.
@@ -117,7 +143,12 @@ func InstanceFromInbound(ib *model.Inbound) (Instance, bool) {
 		settings = healed
 	}
 	var parsed struct {
-		Secret                string `json:"secret"`
+		Secret  string `json:"secret"`
+		Clients []struct {
+			Email  string `json:"email"`
+			Secret string `json:"secret"`
+			Enable *bool  `json:"enable"`
+		} `json:"clients"`
 		Debug                 bool   `json:"debug"`
 		ProxyProtocolListener bool   `json:"proxyProtocolListener"`
 		PreferIP              string `json:"preferIp"`
@@ -132,7 +163,24 @@ func InstanceFromInbound(ib *model.Inbound) (Instance, bool) {
 	if err := json.Unmarshal([]byte(settings), &parsed); err != nil {
 		return Instance{}, false
 	}
-	if parsed.Secret == "" {
+
+	var secrets []SecretEntry
+	if len(parsed.Clients) > 0 {
+		for _, c := range parsed.Clients {
+			if c.Enable == nil || *c.Enable {
+				if c.Secret != "" {
+					secrets = append(secrets, SecretEntry{
+						Name:   c.Email,
+						Secret: c.Secret,
+					})
+				}
+			}
+		}
+	} else if parsed.Secret != "" {
+		secrets = append(secrets, SecretEntry{Secret: parsed.Secret})
+	}
+
+	if len(secrets) == 0 && parsed.Secret == "" {
 		return Instance{}, false
 	}
 	return Instance{
@@ -141,6 +189,7 @@ func InstanceFromInbound(ib *model.Inbound) (Instance, bool) {
 		Listen:                ib.Listen,
 		Port:                  ib.Port,
 		Secret:                parsed.Secret,
+		Secrets:               secrets,
 		Debug:                 parsed.Debug,
 		ProxyProtocolListener: parsed.ProxyProtocolListener,
 		PreferIP:              parsed.PreferIP,
