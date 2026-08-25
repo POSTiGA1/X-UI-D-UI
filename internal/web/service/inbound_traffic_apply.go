@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
-	"github.com/mhsanaei/3x-ui/v3/internal/xray"
+	"github.com/mdaltoon10/D-UI/v3/internal/database/model"
+	"github.com/mdaltoon10/D-UI/v3/internal/logger"
+	"github.com/mdaltoon10/D-UI/v3/internal/xray"
 
 	"gorm.io/gorm"
 )

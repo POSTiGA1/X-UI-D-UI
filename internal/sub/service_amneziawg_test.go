@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/amneziawg"
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	wgutil "github.com/mhsanaei/3x-ui/v3/internal/util/wireguard"
+	"github.com/mdaltoon10/D-UI/v3/internal/amneziawg"
+	"github.com/mdaltoon10/D-UI/v3/internal/database"
+	"github.com/mdaltoon10/D-UI/v3/internal/database/model"
+	wgutil "github.com/mdaltoon10/D-UI/v3/internal/util/wireguard"
 )
 
 // TestGenAmneziaWGLinkFields covers the real AmneziaVPN app's vpn:// scheme:

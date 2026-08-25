@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	"github.com/mhsanaei/3x-ui/v3/internal/mtproto"
-	"github.com/mhsanaei/3x-ui/v3/internal/xray"
+	"github.com/mdaltoon10/D-UI/v3/internal/database"
+	"github.com/mdaltoon10/D-UI/v3/internal/database/model"
+	"github.com/mdaltoon10/D-UI/v3/internal/mtproto"
+	"github.com/mdaltoon10/D-UI/v3/internal/xray"
 )
 
 const (

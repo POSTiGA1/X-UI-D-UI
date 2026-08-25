@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
+	"github.com/mdaltoon10/D-UI/v3/internal/database/model"
 )
 
 func TestFreshInstallFastPathMarksResetIpLimitSeeder(t *testing.T) {

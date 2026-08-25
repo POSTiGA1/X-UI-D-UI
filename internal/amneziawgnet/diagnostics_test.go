@@ -13,8 +13,8 @@ import (
 	"github.com/amnezia-vpn/amneziawg-go/v3/tun/netstack"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/amneziawg"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/wireguard"
+	"github.com/mdaltoon10/D-UI/v3/internal/amneziawg"
+	"github.com/mdaltoon10/D-UI/v3/internal/util/wireguard"
 )
 
 func TestDiagnoseNoRunningInstance(t *testing.T) {

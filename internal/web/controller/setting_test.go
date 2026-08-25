@@ -11,10 +11,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/mhsanaei/3x-ui/v3/internal/database"
-	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
-	"github.com/mhsanaei/3x-ui/v3/internal/util/crypto"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
+	"github.com/mdaltoon10/D-UI/v3/internal/database"
+	"github.com/mdaltoon10/D-UI/v3/internal/database/model"
+	"github.com/mdaltoon10/D-UI/v3/internal/util/crypto"
+	"github.com/mdaltoon10/D-UI/v3/internal/web/service"
 )
 
 func TestValidateRegex(t *testing.T) {

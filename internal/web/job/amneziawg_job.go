@@ -1,9 +1,9 @@
 package job
 
 import (
-	"github.com/mhsanaei/3x-ui/v3/internal/amneziawgnet"
-	"github.com/mhsanaei/3x-ui/v3/internal/logger"
-	"github.com/mhsanaei/3x-ui/v3/internal/web/service"
+	"github.com/mdaltoon10/D-UI/v3/internal/amneziawgnet"
+	"github.com/mdaltoon10/D-UI/v3/internal/logger"
+	"github.com/mdaltoon10/D-UI/v3/internal/web/service"
 )
 
 // AmneziaWGJob reconciles the running embedded AmneziaWG interfaces
