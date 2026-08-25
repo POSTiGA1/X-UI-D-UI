@@ -133,10 +133,35 @@ export function setupAxios(): void {
     async (error: { response?: { status?: number }; config?: CsrfAwareConfig }) => {
       const status = error.response?.status;
       if (status === 401) {
+        const isLoginPage = !window.location.pathname.includes('/panel');
+        if (isLoginPage) {
+          return Promise.reject(error);
+        }
         if (!sessionExpired) {
           sessionExpired = true;
-          const basePath = window.X_UI_BASE_PATH || '/';
-          window.location.replace(basePath);
+          const isReseller = (typeof window !== 'undefined' && typeof window.X_UI_BASE_PATH !== 'undefined')
+            ? !!(window as unknown as { X_UI_IS_RESELLER?: boolean }).X_UI_IS_RESELLER
+            : !!localStorage.getItem('daltoon_current_admin');
+          const resellerWebPath = (window as unknown as { X_UI_RESELLER_WEB_PATH?: string }).X_UI_RESELLER_WEB_PATH;
+          
+          let redirectUrl = window.X_UI_BASE_PATH || '/';
+          if (isReseller && resellerWebPath) {
+            const cleanBase = redirectUrl.endsWith('/') ? redirectUrl : redirectUrl + '/';
+            const cleanBaseLower = cleanBase.toLowerCase();
+            const webPathLower = String(resellerWebPath).toLowerCase();
+            const rootBase = cleanBaseLower.includes('/' + webPathLower + '/')
+              ? cleanBase.substring(0, cleanBaseLower.indexOf('/' + webPathLower + '/')) + '/'
+              : cleanBase;
+            redirectUrl = `${rootBase}portal/${resellerWebPath}`;
+          } else {
+            const cleanBase = redirectUrl.endsWith('/') ? redirectUrl : redirectUrl + '/';
+            redirectUrl = cleanBase;
+          }
+          localStorage.removeItem('daltoon_current_admin');
+          sessionStorage.removeItem('daltoon_is_reseller');
+          sessionStorage.removeItem('daltoon_reseller_webpath');
+          localStorage.removeItem('daltoon_reseller_webpath');
+          window.location.replace(redirectUrl);
         }
         return new Promise(() => {});
       }

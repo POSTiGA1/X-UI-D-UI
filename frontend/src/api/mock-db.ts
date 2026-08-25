@@ -81,6 +81,10 @@ export interface InboundClient {
   password?: string;
   limitIP?: number;
   limitIp?: number;
+  uploadMbps?: number;
+  downloadMbps?: number;
+  uploadLimit?: number;
+  downloadLimit?: number;
   totalGB?: number;
   expiryTime?: number;
   enable?: boolean;
@@ -225,7 +229,7 @@ const DEFAULT_SETTINGS: Record<string, string | number | boolean> = {
   pageSize: "25",
   expireDiff: "3",
   trafficDiff: "10",
-  remarkTemplate: 'Daltoon-UI-{{remark}}',
+  remarkTemplate: 'D-UI-{{remark}}',
   datepicker: 'gregorian',
   tgBotEnable: false,
   tgBotToken: '',
@@ -241,10 +245,10 @@ const DEFAULT_SETTINGS: Record<string, string | number | boolean> = {
   xrayTemplateConfig: '{}',
   subEnable: true,
   subJsonEnable: true,
-  subTitle: 'Daltoon-UI Subscription',
+  subTitle: 'D-UI Subscription',
   subSupportUrl: 'https://t.me/daltoon_support',
   subProfileUrl: '',
-  subAnnounce: 'Welcome to Daltoon-UI Panel!',
+  subAnnounce: 'Welcome to D-UI Panel!',
   subEnableRouting: false,
   subRoutingRules: '',
   subListen: '0.0.0.0',
@@ -1029,7 +1033,7 @@ export function handleMockRequest(url: string, _method: string, requestData: unk
     let active = 0;
 
     allClients.forEach((c) => {
-      const used = c.traffic.up + c.traffic.down;
+      const used = (c.traffic?.up || 0) + (c.traffic?.down || 0);
       const tLimit = c.totalGB || 0;
       const expired = c.expiryTime > 0 && c.expiryTime <= now;
       const exhausted = tLimit > 0 && used >= tLimit;
@@ -1038,10 +1042,11 @@ export function handleMockRequest(url: string, _method: string, requestData: unk
       if (expired || exhausted) depleted.push(c.email);
       else if (!c.enable) deactive.push(c.email);
       else {
+        // Non-expired, non-exhausted, enabled clients are ACTIVE
+        active++;
         const nearExpiry = c.expiryTime > 0 && c.expiryTime - now < 3 * 86400000;
         const nearLimit = tLimit > 0 && tLimit - used < 10 * 1024 * 1024 * 1024;
         if (nearExpiry || nearLimit) expiring.push(c.email);
-        else active++;
       }
     });
 
@@ -1089,8 +1094,12 @@ export function handleMockRequest(url: string, _method: string, requestData: unk
               flow: c.flow || '',
               security: c.security || '',
               totalGB: c.totalGB || 0,
+              uploadLimit: c.uploadLimit || c.uploadMbps || 0,
+              downloadLimit: c.downloadLimit || c.downloadMbps || 0,
+              uploadMbps: c.uploadMbps || c.uploadLimit || 0,
+              downloadMbps: c.downloadMbps || c.downloadLimit || 0,
               expiryTime: c.expiryTime || 0,
-              limitIp: c.limitIp || 0,
+              limitIp: c.limitIp || c.limitIP || 0,
               tgId: c.tgId || '',
               group: c.group || '',
               comment: c.comment || '',
@@ -1141,6 +1150,10 @@ export function handleMockRequest(url: string, _method: string, requestData: unk
             id: body.client?.id || body.client?.uuid || 'uuid-12345678-abcd-1234-abcd-12345678abcd',
             email: body.client?.email,
             limitIP: body.client?.limitIp || 0,
+            uploadLimit: body.client?.uploadLimit || body.client?.uploadMbps || 0,
+            downloadLimit: body.client?.downloadLimit || body.client?.downloadMbps || 0,
+            uploadMbps: body.client?.uploadMbps || body.client?.uploadLimit || 0,
+            downloadMbps: body.client?.downloadMbps || body.client?.downloadLimit || 0,
             totalGB: body.client?.totalGB || 0,
             expiryTime: body.client?.expiryTime || 0,
             enable: body.client?.enable !== false,
@@ -1185,6 +1198,11 @@ export function handleMockRequest(url: string, _method: string, requestData: unk
           clients[idx] = {
             ...c,
             limitIP: body.limitIp ?? c.limitIP,
+            limitIp: body.limitIp ?? c.limitIp,
+            uploadLimit: body.uploadLimit ?? body.uploadMbps ?? c.uploadLimit ?? c.uploadMbps,
+            downloadLimit: body.downloadLimit ?? body.downloadMbps ?? c.downloadLimit ?? c.downloadMbps,
+            uploadMbps: body.uploadMbps ?? body.uploadLimit ?? c.uploadMbps ?? c.uploadLimit,
+            downloadMbps: body.downloadMbps ?? body.downloadLimit ?? c.downloadMbps ?? c.downloadLimit,
             totalGB: body.totalGB ?? c.totalGB,
             expiryTime: body.expiryTime ?? c.expiryTime,
             enable: body.enable ?? c.enable,
@@ -1487,7 +1505,8 @@ export function handleMockRequest(url: string, _method: string, requestData: unk
   if (path === '/panel/api/admins/delete') {
     const body = typeof requestData === 'string' ? JSON.parse(requestData) : requestData;
     let admins = db.getAdmins();
-    const adminToDelete = admins.find((a) => a.id === body.id);
+    const targetId = body?.id;
+    const adminToDelete = admins.find((a) => a.id === targetId || a.username === targetId);
     if (adminToDelete) {
       const username = adminToDelete.username;
       // Get all inbounds to clean up clients created by this admin, matching real backend behavior
@@ -1511,8 +1530,10 @@ export function handleMockRequest(url: string, _method: string, requestData: unk
         } catch {}
       });
       db.saveInbounds(inbounds);
+      admins = admins.filter((a) => a.id !== adminToDelete.id && a.username !== adminToDelete.username);
+    } else {
+      admins = admins.filter((a) => a.id !== targetId && a.username !== targetId);
     }
-    admins = admins.filter((a) => a.id !== body.id);
     db.saveAdmins(admins);
     return { success: true, msg: 'Admin deleted successfully' };
   }

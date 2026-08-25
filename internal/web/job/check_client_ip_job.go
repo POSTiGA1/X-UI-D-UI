@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"sort"
-	"time"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/mdaltoon10/D-UI/v3/internal/database"
 	"github.com/mdaltoon10/D-UI/v3/internal/database/model"
@@ -36,7 +39,12 @@ type CheckClientIpJob struct {
 	xrayService   service.XrayService
 }
 
-var job *CheckClientIpJob
+var (
+	job             *CheckClientIpJob
+	blackholeIPs    = make(map[string]int64) // IP -> Expiration Unix timestamp
+	blackholeEmails = make(map[string]string) // IP -> Email of the client
+	blackholeMu     sync.Mutex
+)
 
 const defaultXrayAPIPort = 62789
 
@@ -49,12 +57,65 @@ func NewCheckClientIpJob() *CheckClientIpJob {
 }
 
 func (j *CheckClientIpJob) Run() {
+	j.cleanExpiredBlackholes()
+
 	observed, apiMode := j.collectFromOnlineAPI()
 	if !apiMode {
 		// xray is down or predates the online-stats API. There is no access-log
 		// fallback anymore, so there is nothing to do this run.
 		logger.Debug("[LimitIP] online-stats API unavailable this run; skipping")
 		return
+	}
+
+	// Dynamic Self-Healing for ALL blackholed/banned emails:
+	// If a client has any banned IPs, but their current active (unbanned) connection count
+	// is below their allowed limit, we instantly unban them!
+	// This ensures that when the active user goes offline, any other blocked users
+	// of that client are instantly unbanned in the next 1-second scan.
+	blackholeMu.Lock()
+	blackholeEmailsCopy := make(map[string]string, len(blackholeEmails))
+	for ip, email := range blackholeEmails {
+		blackholeEmailsCopy[ip] = email
+	}
+	blackholeMu.Unlock()
+
+	emailsToCheck := make(map[string]bool)
+	for _, email := range blackholeEmailsCopy {
+		emailsToCheck[email] = true
+	}
+
+	if len(emailsToCheck) > 0 {
+		var emailList []string
+		for email := range emailsToCheck {
+			emailList = append(emailList, email)
+		}
+		limits := j.loadClientLimits(emailList)
+		for _, email := range emailList {
+			limit := limits[email]
+			if limit <= 0 {
+				// No limit or disabled limit: unban all IPs for this client
+				unbanClientIps(email)
+				continue
+			}
+
+			// Count currently active unbanned IPs
+			activeCount := 0
+			if ipMap, ok := observed[email]; ok {
+				for ip := range ipMap {
+					blackholeMu.Lock()
+					_, isBanned := blackholeIPs[ip]
+					blackholeMu.Unlock()
+					if !isBanned {
+						activeCount++
+					}
+				}
+			}
+
+			if activeCount < limit {
+				// Instantly unban all banned IPs of this client because they have free slots!
+				unbanClientIps(email)
+			}
+		}
 	}
 
 	hasLimit := j.hasLimitIp()
@@ -98,8 +159,9 @@ func (j *CheckClientIpJob) collectFromOnlineAPI() (map[string]map[string]int64, 
 			}
 			// Xray's statsUserOnline keeps track of all seen IPs since startup/reload.
 			// To ensure accurate real-time IP limiting and prevent offline devices
-			// from blocking new ones, we ignore IPs that haven't been active in the last 10 seconds.
-			if now-ts > 10 {
+			// from blocking new ones, we ignore IPs that haven't been active in the last 30 seconds.
+			// (Optimized to 30s so idle users reading pages are not falsely marked offline, while keeping limits highly reactive).
+			if now-ts > 30 {
 				continue
 			}
 			if _, exists := observed[user.Email]; !exists {
@@ -114,14 +176,18 @@ func (j *CheckClientIpJob) collectFromOnlineAPI() (map[string]map[string]int64, 
 }
 
 // hasLimitIp reports whether any client carries an IP limit. It probes the
-// normalized clients table (limit_ip is synced there by SyncInbound and the
-// legacy seeder), replacing the old `settings LIKE '%limitIp%'` scan that
-// loaded and JSON-parsed every inbound's settings blob on each 10s run.
+// normalized clients table and inbounds settings.
 func (j *CheckClientIpJob) hasLimitIp() bool {
 	db := database.GetDB()
 	var probe int64
-	err := db.Model(&model.ClientRecord{}).Where("limit_ip > 0").Limit(1).Count(&probe).Error
-	return err == nil && probe > 0
+	if err := db.Model(&model.ClientRecord{}).Where("limit_ip > 0").Limit(1).Count(&probe).Error; err == nil && probe > 0 {
+		return true
+	}
+	var inboundProbe int64
+	if err := db.Model(&model.Inbound{}).Where("settings LIKE ?", "%limitIp%").Limit(1).Count(&inboundProbe).Error; err == nil && inboundProbe > 0 {
+		return true
+	}
+	return false
 }
 
 const ipScanChunk = 400
@@ -138,8 +204,7 @@ func chunkEmails(s []string, size int) [][]string {
 }
 
 // loadClientLimits maps each observed email to its clients.limit_ip in a few
-// chunked queries, replacing the per-email settings-JSON parse that previously
-// resolved the limit.
+// chunked queries, falling back to inbounds settings if not found in clients table.
 func (j *CheckClientIpJob) loadClientLimits(emails []string) map[string]int {
 	db := database.GetDB()
 	out := make(map[string]int, len(emails))
@@ -157,6 +222,28 @@ func (j *CheckClientIpJob) loadClientLimits(emails []string) map[string]int {
 		}
 		for _, r := range rows {
 			out[r.Email] = r.LimitIp
+		}
+	}
+	// Fallback to check inbound settings for any emails with limit 0 or missing
+	for _, email := range emails {
+		if out[email] <= 0 {
+			var inbounds []model.Inbound
+			if err := db.Model(&model.Inbound{}).Where("settings LIKE ?", "%"+email+"%").Find(&inbounds).Error; err == nil {
+				for _, ib := range inbounds {
+					settings := map[string][]model.Client{}
+					if jsonErr := json.Unmarshal([]byte(ib.Settings), &settings); jsonErr == nil {
+						for _, client := range settings["clients"] {
+							if client.Email == email && client.LimitIP > 0 {
+								out[email] = client.LimitIP
+								break
+							}
+						}
+					}
+					if out[email] > 0 {
+						break
+					}
+				}
+			}
 		}
 	}
 	return out
@@ -430,7 +517,6 @@ func mergeClientIps(old, new []IPWithTimestamp, staleCutoff int64, newAlwaysLive
 		} else {
 			// Existing IP, update Timestamp to latest activity, but PRESERVE Created!
 			if ipTime.Timestamp > existing.Timestamp {
-				// If the IP was offline/unseen for more than 30 seconds, treat it as a new session
 				if ipTime.Timestamp-existing.Timestamp > 30 {
 					existing.Created = ipTime.Timestamp
 				}
@@ -467,9 +553,9 @@ func partitionLiveIps(ipMap map[string]IPWithTimestamp, observedThisScan map[str
 	now := time.Now().Unix()
 	for ip, entry := range ipMap {
 		// Consider an IP "live" if it was seen locally in this scan, OR if its
-		// timestamp from the synced database is very recent (e.g. within 10 seconds).
+		// timestamp from the synced database is recent (within 30 seconds).
 		// This ensures cluster-wide limits work even if the IP was seen on another node.
-		if observedThisScan[ip] || now-entry.Timestamp < 10 {
+		if observedThisScan[ip] || now-entry.Timestamp <= 30 {
 			live = append(live, entry)
 		} else {
 			historical = append(historical, entry)
@@ -479,7 +565,15 @@ func partitionLiveIps(ipMap map[string]IPWithTimestamp, observedThisScan map[str
 	// Sort live IPs oldest-first.
 	// We prefer sorting by Created timestamp to track actual connection start time.
 	// If Created is 0, we fall back to Timestamp.
+	// Critical: Actively transmitting local IPs (present in observedThisScan) always take priority over
+	// recently inactive/ghost IPs. This prevents offline or idle connections from blocking active ones.
 	sort.Slice(live, func(i, j int) bool {
+		obsI := observedThisScan[live[i].IP]
+		obsJ := observedThisScan[live[j].IP]
+		if obsI != obsJ {
+			return obsI
+		}
+
 		tI := live[i].Created
 		if tI == 0 {
 			tI = live[i].Timestamp
@@ -554,6 +648,180 @@ func (j *CheckClientIpJob) delInboundClientIps(tx *gorm.DB, clientEmail string) 
 	}
 }
 
+func (j *CheckClientIpJob) cleanExpiredBlackholes() {
+	var ipsToUnban []string
+	blackholeMu.Lock()
+	now := time.Now().Unix()
+	for ip, expireAt := range blackholeIPs {
+		if now >= expireAt {
+			ipsToUnban = append(ipsToUnban, ip)
+			delete(blackholeIPs, ip)
+			delete(blackholeEmails, ip)
+		}
+	}
+	blackholeMu.Unlock()
+
+	for _, ip := range ipsToUnban {
+		unbanIpDirectly(ip)
+	}
+}
+
+func unbanClientIps(email string) {
+	var ipsToUnban []string
+	blackholeMu.Lock()
+	for ip, e := range blackholeEmails {
+		if e == email {
+			ipsToUnban = append(ipsToUnban, ip)
+			delete(blackholeIPs, ip)
+			delete(blackholeEmails, ip)
+		}
+	}
+	blackholeMu.Unlock()
+
+	for _, ip := range ipsToUnban {
+		unbanIpDirectly(ip)
+	}
+}
+
+func unbanIpDirectly(ip string) {
+	if ip == "" || ip == "127.0.0.1" || ip == "::1" {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	logger.Infof("[LIMIT_IP] Removing kernel blackhole route and firewall rule for IP: %s", ip)
+
+	if strings.Contains(ip, ":") {
+		deleteIptablesRuleAll(ctx, "ip6tables", "INPUT", "-s", ip)
+		deleteIptablesRuleAll(ctx, "ip6tables", "OUTPUT", "-d", ip)
+		deleteIptablesRuleAll(ctx, "ip6tables", "FORWARD", "-s", ip)
+		subnet64 := getIPv6Subnet64(ip)
+		if subnet64 != "" {
+			deleteIptablesRuleAll(ctx, "ip6tables", "INPUT", "-s", subnet64)
+			deleteIptablesRuleAll(ctx, "ip6tables", "OUTPUT", "-d", subnet64)
+			deleteIptablesRuleAll(ctx, "ip6tables", "FORWARD", "-s", subnet64)
+		}
+		runSysCmd(ctx, "ip", "-6", "route", "del", "blackhole", ip)
+		runSysCmd(ctx, "ip", "-6", "route", "del", ip)
+	} else {
+		deleteIptablesRuleAll(ctx, "iptables", "INPUT", "-s", ip)
+		deleteIptablesRuleAll(ctx, "iptables", "OUTPUT", "-d", ip)
+		deleteIptablesRuleAll(ctx, "iptables", "FORWARD", "-s", ip)
+		runSysCmd(ctx, "ip", "route", "del", "blackhole", ip)
+		runSysCmd(ctx, "ip", "route", "del", ip)
+	}
+}
+
+func deleteIptablesRuleAll(ctx context.Context, cmdName, chain, flag, ip string) {
+	for i := 0; i < 20; i++ {
+		binPath, err := exec.LookPath(cmdName)
+		if err != nil {
+			binPath = "/sbin/" + cmdName
+		}
+		var cmd *exec.Cmd
+		if os.Geteuid() == 0 {
+			cmd = exec.CommandContext(ctx, binPath, "-D", chain, flag, ip, "-j", "DROP")
+		} else {
+			cmd = exec.CommandContext(ctx, "sudo", "-n", binPath, "-D", chain, flag, ip, "-j", "DROP")
+		}
+		if err := cmd.Run(); err != nil {
+			break
+		}
+	}
+}
+
+func getIPv6Subnet64(ipStr string) string {
+	ip := net.ParseIP(ipStr)
+	if ip == nil || ip.To4() != nil {
+		return ""
+	}
+	mask := net.CIDRMask(64, 128)
+	network := ip.Mask(mask)
+	return fmt.Sprintf("%s/64", network.String())
+}
+
+func runSysCmd(ctx context.Context, name string, args ...string) {
+	binPath, err := exec.LookPath(name)
+	if err != nil {
+		for _, p := range []string{"/sbin/" + name, "/usr/sbin/" + name, "/usr/bin/" + name, "/bin/" + name} {
+			if _, statErr := os.Stat(p); statErr == nil {
+				binPath = p
+				break
+			}
+		}
+	}
+	if binPath == "" {
+		binPath = name
+	}
+
+	if os.Geteuid() == 0 {
+		cmd := exec.CommandContext(ctx, binPath, args...)
+		_ = cmd.Run()
+		return
+	}
+
+	cmdSudo := exec.CommandContext(ctx, "sudo", append([]string{"-n", binPath}, args...)...)
+	if err := cmdSudo.Run(); err == nil {
+		return
+	}
+
+	cmd := exec.CommandContext(ctx, binPath, args...)
+	_ = cmd.Run()
+}
+
+func banIpDirectly(ip string, email string) {
+	if ip == "" || ip == "127.0.0.1" || ip == "::1" {
+		return
+	}
+
+	// Track and manage auto-unbanning in 5 minutes (300 seconds)
+	blackholeMu.Lock()
+	_, alreadyBanned := blackholeIPs[ip]
+	blackholeIPs[ip] = time.Now().Unix() + 300
+	blackholeEmails[ip] = email
+	blackholeMu.Unlock()
+
+	// If this IP is already banned, skip re-executing firewall rules to prevent rule accumulation
+	if alreadyBanned {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	logger.Infof("[LIMIT_IP] Applying kernel blackhole route and killing connections for IP: %s (Client: %s)", ip, email)
+
+	if strings.Contains(ip, ":") {
+		// IPv6 address: Drop at position 1, add blackhole, & reset connections
+		runSysCmd(ctx, "ip6tables", "-I", "INPUT", "1", "-s", ip, "-j", "DROP")
+		runSysCmd(ctx, "ip6tables", "-I", "OUTPUT", "1", "-d", ip, "-j", "DROP")
+		runSysCmd(ctx, "ip6tables", "-I", "FORWARD", "1", "-s", ip, "-j", "DROP")
+		subnet64 := getIPv6Subnet64(ip)
+		if subnet64 != "" {
+			runSysCmd(ctx, "ip6tables", "-I", "INPUT", "1", "-s", subnet64, "-j", "DROP")
+			runSysCmd(ctx, "ip6tables", "-I", "OUTPUT", "1", "-d", subnet64, "-j", "DROP")
+			runSysCmd(ctx, "ip6tables", "-I", "FORWARD", "1", "-s", subnet64, "-j", "DROP")
+		}
+		runSysCmd(ctx, "ip", "-6", "route", "replace", "blackhole", ip)
+		runSysCmd(ctx, "ss", "-K", "dst", fmt.Sprintf("[%s]", ip))
+		runSysCmd(ctx, "ss", "-K", "src", fmt.Sprintf("[%s]", ip))
+		runSysCmd(ctx, "conntrack", "-D", "-s", ip)
+		runSysCmd(ctx, "conntrack", "-D", "-d", ip)
+	} else {
+		// IPv4 address: Drop at position 1, add blackhole, & reset connections
+		runSysCmd(ctx, "iptables", "-I", "INPUT", "1", "-s", ip, "-j", "DROP")
+		runSysCmd(ctx, "iptables", "-I", "OUTPUT", "1", "-d", ip, "-j", "DROP")
+		runSysCmd(ctx, "iptables", "-I", "FORWARD", "1", "-s", ip, "-j", "DROP")
+		runSysCmd(ctx, "ip", "route", "replace", "blackhole", ip)
+		runSysCmd(ctx, "ss", "-K", "dst", ip)
+		runSysCmd(ctx, "ss", "-K", "src", ip)
+		runSysCmd(ctx, "conntrack", "-D", "-s", ip)
+		runSysCmd(ctx, "conntrack", "-D", "-d", ip)
+	}
+}
+
 // updateInboundClientIps merges one email's observed IPs into its tracking row
 // and applies the IP limit. limitIp comes from the caller (the clients table);
 // writes go through the caller's transaction. banned=true asks the caller to
@@ -564,9 +832,21 @@ func (j *CheckClientIpJob) updateInboundClientIps(tx *gorm.DB, inboundClientIps 
 		return false, false
 	}
 
-	if !enforce || limitIp <= 0 || !inbound.Enable {
-		// Nothing to enforce (collection-only run, no limit on the clients row,
-		// or inbound disabled): record the observed IPs for the panel and return.
+	if limitIp <= 0 && inbound.Settings != "" {
+		settings := map[string][]model.Client{}
+		if err := json.Unmarshal([]byte(inbound.Settings), &settings); err == nil {
+			for _, client := range settings["clients"] {
+				if client.Email == clientEmail && client.LimitIP > 0 {
+					limitIp = client.LimitIP
+					break
+				}
+			}
+		}
+	}
+
+	if limitIp <= 0 || !inbound.Enable {
+		// Nothing to enforce (no limit on the client, or inbound disabled):
+		// record the observed IPs for the panel and return.
 		jsonIps, _ := json.Marshal(newIpsWithTime)
 		inboundClientIps.Ips = string(jsonIps)
 		if err := tx.Save(inboundClientIps).Error; err != nil {
@@ -593,36 +873,71 @@ func (j *CheckClientIpJob) updateInboundClientIps(tx *gorm.DB, inboundClientIps 
 
 	j.disAllowedIps = []string{}
 
-	// historical db-only ips are excluded from this count on purpose.
+	// Calculate precise current active unbanned user count
+	var otherNodesCount int64
+	if tx.Model(&model.Node{}).Where("enable = ?", true).Count(&otherNodesCount).Error != nil {
+		otherNodesCount = 0
+	}
+
+	activeCount := 0
+	for _, ipTime := range liveIps {
+		blackholeMu.Lock()
+		_, isBanned := blackholeIPs[ipTime.IP]
+		blackholeMu.Unlock()
+		if isBanned {
+			continue
+		}
+
+		if otherNodesCount == 0 {
+			// Single-node setup: count as active only if observed locally transmitting data in this scan
+			if observedThisScan[ipTime.IP] {
+				activeCount++
+			}
+		} else {
+			// Multi-node setup fallback: count as active if observed locally OR seen recently in synced database
+			if observedThisScan[ipTime.IP] || time.Now().Unix()-ipTime.Timestamp <= 30 {
+				activeCount++
+			}
+		}
+	}
+
 	policy := (&service.SettingService{}).GetIpLimitPolicy()
-	keptLive, bannedLive := selectIpsToBan(liveIps, limitIp, policy)
+	var keptLive, bannedLive []IPWithTimestamp
+
+	// If the number of currently active unbanned IPs is strictly less than the limit,
+	// we have empty slots! Instantly unban all previously blocked IPs of this client for dynamic self-healing.
+	if activeCount < limitIp {
+		unbanClientIps(clientEmail)
+		keptLive = liveIps
+		bannedLive = nil
+	} else {
+		// Otherwise, select which IPs to keep and which to ban/reject
+		keptLive, bannedLive = selectIpsToBan(liveIps, limitIp, policy)
+	}
+
 	if len(bannedLive) > 0 {
 		shouldCleanLog = true
 
 		isKickOnly := policy == "kick_only" || policy == "kick_oldest_kick_only" || policy == "block_newest_kick_only"
 		if !isKickOnly {
 			logIpFile, err := os.OpenFile(xray.GetIPLimitLogPath(), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
-			if err != nil {
-				logger.Errorf("failed to open IP limit log file: %s", err)
-				return false, false
+			if err == nil {
+				ipLogger := log.New(logIpFile, "", log.LstdFlags)
+				for _, ipTime := range bannedLive {
+					j.disAllowedIps = append(j.disAllowedIps, ipTime.IP)
+					ipLogger.Printf("[LIMIT_IP] Email = %s || Disconnecting OLD IP = %s || Timestamp = %d", clientEmail, ipTime.IP, ipTime.Timestamp)
+				}
+				_ = logIpFile.Close()
 			}
-			defer logIpFile.Close()
-			ipLogger := log.New(logIpFile, "", log.LstdFlags)
-
-			// log format is load-bearing: d-ui.sh create_iplimit_jails builds
-			// filter.d/dui-ipl.conf with
-			//   failregex = \[LIMIT_IP\]\s*Email\s*=\s*<F-USER>.+</F-USER>\s*\|\|\s*Disconnecting OLD IP\s*=\s*<ADDR>\s*\|\|\s*Timestamp\s*=\s*\d+
-			// don't change the wording.
-			for _, ipTime := range bannedLive {
-				j.disAllowedIps = append(j.disAllowedIps, ipTime.IP)
-				ipLogger.Printf("[LIMIT_IP] Email = %s || Disconnecting OLD IP = %s || Timestamp = %d", clientEmail, ipTime.IP, ipTime.Timestamp)
-			}
-			banned = false
 		} else {
 			for _, ipTime := range bannedLive {
 				j.disAllowedIps = append(j.disAllowedIps, ipTime.IP)
 			}
-			banned = true
+		}
+
+		// Direct, instant kernel-level firewall block and socket kill for the banned IP only
+		for _, ipTime := range bannedLive {
+			banIpDirectly(ipTime.IP, clientEmail)
 		}
 	}
 
@@ -641,7 +956,7 @@ func (j *CheckClientIpJob) updateInboundClientIps(tx *gorm.DB, inboundClientIps 
 	}
 
 	if len(j.disAllowedIps) > 0 {
-		logger.Infof("[LIMIT_IP] Client %s: Kept %d live IPs, queued %d old IPs for fail2ban", clientEmail, len(keptLive), len(j.disAllowedIps))
+		logger.Infof("[LIMIT_IP] Client %s: Kept %d live IPs, blocked %d exceeding IPs immediately", clientEmail, len(keptLive), len(j.disAllowedIps))
 	}
 
 	return shouldCleanLog, banned

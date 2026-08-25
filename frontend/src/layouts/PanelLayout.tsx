@@ -16,6 +16,9 @@ export default function PanelLayout() {
     const isProductionBackend = typeof window !== 'undefined' && !!window.X_UI_CUR_VER;
     if (!isResellerBackend && isProductionBackend) {
       localStorage.removeItem('daltoon_current_admin');
+      sessionStorage.removeItem('daltoon_is_reseller');
+      sessionStorage.removeItem('daltoon_reseller_webpath');
+      localStorage.removeItem('daltoon_reseller_webpath');
     }
   }, []);
 

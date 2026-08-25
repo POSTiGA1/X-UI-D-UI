@@ -34,6 +34,9 @@ func ResellerPathMiddleware(mainBasePath string) gin.HandlerFunc {
 		}
 
 		webPath := segments[startIndex]
+		if webPath == "portal" && len(segments) > startIndex+1 {
+			webPath = segments[startIndex+1]
+		}
 		
 		// Reserved segments that are NOT resellers
 		reserved := map[string]bool{
@@ -64,6 +67,7 @@ func ResellerPathMiddleware(mainBasePath string) gin.HandlerFunc {
 
 			c.Set("base_path", resellerBasePath)
 			c.Set("is_reseller", true)
+			c.Set("reseller_web_path", admin.WebPath)
 			c.Set("IMPERSONATE_RESELLER_ID", admin.Id)
 			c.Set("IMPERSONATE_RESELLER_USERNAME", admin.Username)
 		}

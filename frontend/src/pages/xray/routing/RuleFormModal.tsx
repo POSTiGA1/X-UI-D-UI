@@ -4,6 +4,8 @@ import { Button, Form, Input, Modal, Select, Space, Switch, Tooltip } from 'antd
 import { PlusOutlined, MinusOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { InputAddon } from '@/components/ui';
 import { useInboundOptions } from '@/api/queries/useInboundOptions';
+import { useGeodataCategories } from '@/api/queries/useGeodata';
+import { useClientOptions } from '@/api/queries/useClientOptions';
 import { RuleFormSchema, type RuleFormValues } from '@/schemas/xray';
 import { buildRemarkByTag, formatInboundTag, isApiRule } from './helpers';
 
@@ -78,6 +80,10 @@ export default function RuleFormModal({
 
   const { data: inboundOptions } = useInboundOptions();
   const remarkByTag = useMemo(() => buildRemarkByTag(inboundOptions || []), [inboundOptions]);
+
+  const { data: clients } = useClientOptions(open);
+  const { data: geoipCats } = useGeodataCategories('geoip.dat', '', open);
+  const { data: geositeCats } = useGeodataCategories('geosite.dat', '', open);
 
   useEffect(() => {
     if (!open) return;
@@ -251,7 +257,18 @@ export default function RuleFormModal({
             </Tooltip>
           }
         >
-          <Input value={form.ip} onChange={(e) => update('ip', e.target.value)} placeholder="0.0.0.0/8, fc00::/7, geoip:ir" />
+          <Select
+            mode="tags"
+            value={csv(form.ip)}
+            placeholder="0.0.0.0/8, fc00::/7, geoip:ir"
+            style={{ width: '100%' }}
+            onChange={(v) => update('ip', v.join(','))}
+            options={(geoipCats?.items || []).map((cat) => ({
+              value: `geoip:${cat}`,
+              label: `geoip:${cat}`,
+            }))}
+            tokenSeparators={[',']}
+          />
         </Form.Item>
 
         <Form.Item
@@ -261,7 +278,18 @@ export default function RuleFormModal({
             </Tooltip>
           }
         >
-          <Input value={form.domain} onChange={(e) => update('domain', e.target.value)} placeholder="google.com, geosite:cn" />
+          <Select
+            mode="tags"
+            value={csv(form.domain)}
+            placeholder="google.com, geosite:cn"
+            style={{ width: '100%' }}
+            onChange={(v) => update('domain', v.join(','))}
+            options={(geositeCats?.items || []).map((cat) => ({
+              value: `geosite:${cat}`,
+              label: `geosite:${cat}`,
+            }))}
+            tokenSeparators={[',']}
+          />
         </Form.Item>
 
         <Form.Item
@@ -271,7 +299,18 @@ export default function RuleFormModal({
             </Tooltip>
           }
         >
-          <Input value={form.user} onChange={(e) => update('user', e.target.value)} placeholder="email address" />
+          <Select
+            mode="tags"
+            value={csv(form.user)}
+            placeholder="email address"
+            style={{ width: '100%' }}
+            onChange={(v) => update('user', v.join(','))}
+            options={(clients || []).map((email) => ({
+              value: email,
+              label: email,
+            }))}
+            tokenSeparators={[',']}
+          />
         </Form.Item>
 
         <Form.Item

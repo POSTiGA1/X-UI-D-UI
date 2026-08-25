@@ -29,50 +29,64 @@ const initialUltra = readBool(STORAGE_ULTRA, false);
 applyDom(initialDark, initialUltra);
 
 const DARK_TOKENS = {
-  colorBgBase: '#1a1b1f',
-  colorBgLayout: '#1a1b1f',
-  colorBgContainer: '#23252b',
-  colorBgElevated: '#2d2f37',
+  colorPrimary: '#00b4d8',
+  colorSuccess: '#00b4d8',
+  colorInfo: '#06b6d4',
+  colorWarning: '#f59e0b',
+  colorError: '#ef4444',
+  colorBgBase: '#0d0e12',
+  colorBgLayout: '#0d0e12',
+  colorBgContainer: '#16181f',
+  colorBgElevated: '#1f222b',
+  borderRadius: 10,
+  fontFamily: "'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
 };
 const ULTRA_DARK_TOKENS = {
-  colorBgBase: '#000',
-  colorBgLayout: '#000',
-  colorBgContainer: '#101013',
-  colorBgElevated: '#1a1a1e',
+  colorPrimary: '#00b4d8',
+  colorSuccess: '#00b4d8',
+  colorInfo: '#06b6d4',
+  colorWarning: '#f59e0b',
+  colorError: '#ef4444',
+  colorBgBase: '#050507',
+  colorBgLayout: '#050507',
+  colorBgContainer: '#0f1015',
+  colorBgElevated: '#17181f',
+  borderRadius: 10,
+  fontFamily: "'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
 };
 const DARK_LAYOUT_TOKENS = {
-  bodyBg: '#1a1b1f',
-  headerBg: '#15161a',
+  bodyBg: '#0d0e12',
+  headerBg: '#13151b',
   headerColor: '#ffffff',
-  footerBg: '#1a1b1f',
-  siderBg: '#15161a',
-  triggerBg: '#23252b',
+  footerBg: '#0d0e12',
+  siderBg: '#13151b',
+  triggerBg: '#16181f',
   triggerColor: '#ffffff',
 };
 const ULTRA_DARK_LAYOUT_TOKENS = {
-  bodyBg: '#000',
-  headerBg: '#050507',
+  bodyBg: '#050507',
+  headerBg: '#08080c',
   headerColor: '#ffffff',
-  footerBg: '#000',
-  siderBg: '#050507',
-  triggerBg: '#1a1a1e',
+  footerBg: '#050507',
+  siderBg: '#08080c',
+  triggerBg: '#101013',
   triggerColor: '#ffffff',
 };
 const DARK_MENU_TOKENS = {
-  darkItemBg: '#15161a',
-  darkSubMenuItemBg: '#1a1b1f',
-  darkPopupBg: '#23252b',
+  darkItemBg: '#13151b',
+  darkSubMenuItemBg: '#0d0e12',
+  darkPopupBg: '#16181f',
 };
 const ULTRA_DARK_MENU_TOKENS = {
-  darkItemBg: '#050507',
-  darkSubMenuItemBg: '#000',
+  darkItemBg: '#08080c',
+  darkSubMenuItemBg: '#050507',
   darkPopupBg: '#101013',
 };
 const DARK_CARD_TOKENS = {
-  colorBorderSecondary: 'rgba(255, 255, 255, 0.06)',
+  colorBorderSecondary: 'rgba(255, 255, 255, 0.07)',
 };
 const ULTRA_DARK_CARD_TOKENS = {
-  colorBorderSecondary: 'rgba(255, 255, 255, 0.04)',
+  colorBorderSecondary: 'rgba(255, 255, 255, 0.05)',
 };
 const STATISTIC_TOKENS = {
   contentFontSize: 17,
@@ -83,6 +97,16 @@ export function buildAntdThemeConfig(isDark: boolean, isUltra: boolean): ThemeCo
   if (!isDark) {
     return {
       algorithm: antdTheme.defaultAlgorithm,
+      token: {
+        colorPrimary: '#0077b6',
+        colorSuccess: '#0077b6',
+        colorInfo: '#0284c7',
+        colorWarning: '#d97706',
+        colorError: '#dc2626',
+        colorBgLayout: '#f8fafc',
+        borderRadius: 10,
+        fontFamily: "'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+      },
       components: {
         Statistic: STATISTIC_TOKENS,
       },

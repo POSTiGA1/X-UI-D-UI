@@ -78,9 +78,12 @@ func GetLoginUser(c *gin.Context) *model.User {
 	}
 	
 	s := sessions.Default(c)
-	resellerId := GetLoginReseller(c)
-	if resellerId != "" {
-		return &model.User{Id: 1, Username: "reseller"} // fake user with Id=1 so they can access inbounds
+	if c.GetBool("is_reseller") {
+		resellerId := GetLoginReseller(c)
+		if resellerId != "" {
+			return &model.User{Id: 1, Username: "reseller"} // fake user with Id=1 so they can access inbounds
+		}
+		return nil
 	}
 	
 	obj := s.Get(getContextKey(c, loginUserKey))
@@ -142,7 +145,10 @@ func sessionEpochMatches(cookieVal any, userEpoch int64) bool {
 }
 
 func IsLogin(c *gin.Context) bool {
-	return GetLoginUser(c) != nil || IsResellerLogin(c)
+	if c.GetBool("is_reseller") {
+		return IsResellerLogin(c)
+	}
+	return GetLoginUser(c) != nil
 }
 
 func sessionUserID(obj any) (int, bool) {
@@ -194,12 +200,30 @@ func getUserByID(id int) (*model.User, error) {
 	return user, nil
 }
 
+func ClearAdminSession(c *gin.Context) error {
+	s := sessions.Default(c)
+	s.Delete(getContextKey(c, loginUserKey))
+	s.Delete(getContextKey(c, loginEpochKey))
+	return s.Save()
+}
+
+func ClearResellerSession(c *gin.Context) error {
+	s := sessions.Default(c)
+	s.Delete(getContextKey(c, loginResellerKey))
+	s.Delete(getContextKey(c, loginResellerUsernameKey))
+	s.Delete(loginResellerKey)
+	s.Delete(loginResellerUsernameKey)
+	return s.Save()
+}
+
 func ClearSession(c *gin.Context) error {
 	s := sessions.Default(c)
 	s.Delete(getContextKey(c, loginUserKey))
 	s.Delete(getContextKey(c, loginEpochKey))
 	s.Delete(getContextKey(c, loginResellerKey))
 	s.Delete(getContextKey(c, loginResellerUsernameKey))
+	s.Delete(loginResellerKey)
+	s.Delete(loginResellerUsernameKey)
 	return s.Save()
 }
 
@@ -216,6 +240,9 @@ func GetLoginReseller(c *gin.Context) string {
 
 	s := sessions.Default(c)
 	obj := s.Get(getContextKey(c, loginResellerKey))
+	if obj == nil {
+		obj = s.Get(loginResellerKey)
+	}
 	if obj == nil {
 		return ""
 	}
@@ -250,8 +277,16 @@ func GetLoginResellerUsername(c *gin.Context) string {
 
 	s := sessions.Default(c)
 	obj := s.Get(getContextKey(c, loginResellerUsernameKey))
-	if str, ok := obj.(string); ok {
-		return str
+	if obj != nil {
+		if str, ok := obj.(string); ok && str != "" {
+			return str
+		}
+	}
+	obj = s.Get(loginResellerUsernameKey)
+	if obj != nil {
+		if str, ok := obj.(string); ok && str != "" {
+			return str
+		}
 	}
 	return ""
 }

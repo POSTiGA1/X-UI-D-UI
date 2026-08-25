@@ -561,3 +561,40 @@ export const UserSchema = z.object({
 });
 export type User = z.infer<typeof UserSchema>;
 
+export const GeoFileSchema = z.object({
+  name: z.string(),
+  kind: z.union([z.literal('site'), z.literal('ip')]),
+  size: z.number().int(),
+  modifiedAt: z.number().int(),
+  categories: z.number().int(),
+  error: z.string().optional().nullable(),
+});
+
+export const GeoCategorySchema = z.object({
+  code: z.string(),
+  entries: z.number().int(),
+  attributes: z.array(z.string()),
+});
+
+export const GeoEntrySchema = z.object({
+  kind: z.string(),
+  value: z.string(),
+});
+
+export const GeoCategoryPageSchema = z.object({
+  total: z.number().int(),
+  items: z.array(GeoCategorySchema),
+});
+
+export const GeoEntryPageSchema = z.object({
+  total: z.number().int(),
+  items: z.array(GeoEntrySchema),
+});
+
+export const GeodataTokenIssueSchema = z.object({
+  token: z.string(),
+  reason: z.string(),
+  file: z.string().optional().nullable(),
+  code: z.string().optional().nullable(),
+});
+

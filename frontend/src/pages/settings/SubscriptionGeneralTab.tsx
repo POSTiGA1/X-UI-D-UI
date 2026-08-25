@@ -1,5 +1,5 @@
-import { Input, InputNumber, Switch, Tabs } from 'antd';
-import { BranchesOutlined, CompassOutlined, IdcardOutlined, InfoCircleOutlined, NodeIndexOutlined, SafetyCertificateOutlined, SettingOutlined } from '@ant-design/icons';
+import { Input, InputNumber, Select, Switch, Tabs } from 'antd';
+import { BranchesOutlined, CompassOutlined, IdcardOutlined, InfoCircleOutlined, NodeIndexOutlined, SafetyCertificateOutlined, SettingOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import type { AllSetting } from '@/models/setting';
 import { SettingListItem } from '@/components/ui';
@@ -189,6 +189,53 @@ export default function SubscriptionGeneralTab({ allSetting, updateSetting }: Su
             <SettingListItem paddings="small" title={t('pages.settings.subIncyRoutingRules')} description={t('pages.settings.subIncyRoutingRulesDesc')}>
               <Input.TextArea value={allSetting.subIncyRoutingRules} placeholder="incy://routing/onadd/..."
                 onChange={(e) => updateSetting({ subIncyRoutingRules: e.target.value })} />
+            </SettingListItem>
+          </>
+        ),
+      },
+      {
+        key: '8',
+        label: catTabLabel(<ThunderboltOutlined />, 'Daltoon & Iran Routing', isMobile),
+        children: (
+          <>
+            <SettingListItem
+              paddings="small"
+              title="Daltoon Subscription Template (Ourenus-based)"
+              description="Clean subscription page experience with speed gauges, real-time client limits, and OS client quick-importers."
+            >
+              <Switch checked={!!allSetting.subDaltoonTemplate} onChange={(v) => updateSetting({ subDaltoonTemplate: v })} />
+            </SettingListItem>
+            <SettingListItem
+              paddings="small"
+              title="Show Speed & Traffic Gauges"
+              description="Display upload/download speed limit gauges and connection stats in client subscription pages."
+            >
+              <Switch checked={!!allSetting.subShowGauges} onChange={(v) => updateSetting({ subShowGauges: v })} />
+            </SettingListItem>
+            <SettingListItem
+              paddings="small"
+              title="Iran Direct Routing (مسیریابی مستقیم ایران)"
+              description="Directly route Iranian domestic traffic (.ir domains & IR IP ranges) to bypass proxy for higher performance."
+            >
+              <Switch checked={!!allSetting.subIranDirect} onChange={(v) => updateSetting({ subIranDirect: v })} />
+            </SettingListItem>
+            <SettingListItem
+              paddings="small"
+              title="Iran Routing Rule Presets"
+              description="Preset rules for Iranian services, banks, and domestic domains."
+            >
+              <Select
+                mode="multiple"
+                value={allSetting.subIranRules ? allSetting.subIranRules.split(',').filter(Boolean) : ['geosite:category-ir', 'geoip:ir', 'domain:.ir']}
+                onChange={(vals) => updateSetting({ subIranRules: vals.join(',') })}
+                style={{ width: '100%' }}
+                options={[
+                  { label: 'GEOSITE:category-ir (Iranian Websites)', value: 'geosite:category-ir' },
+                  { label: 'GEOIP:IR (Iranian IP Ranges)', value: 'geoip:ir' },
+                  { label: 'Domain: .ir (Iran TLD)', value: 'domain:.ir' },
+                  { label: 'Iranian Banking & Payment Gateways', value: 'geosite:ir-banking' },
+                ]}
+              />
             </SettingListItem>
           </>
         ),

@@ -830,14 +830,19 @@ config_after_update() {
 
     if [[ -z "$server_ip" ]]; then
         echo -e "${yellow}Could not auto-detect server IP from any provider.${plain}"
-        while [[ -z "$server_ip" ]]; do
-            read -rp "Please enter your server's public IPv4 address: " server_ip
-            server_ip="${server_ip// /}"
-            if [[ ! "$server_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                echo -e "${red}Invalid IPv4 address. Please try again.${plain}"
-                server_ip=""
-            fi
-        done
+        if [[ "${dui_update_run_id}" -ne "0" ]]; then
+            echo -e "${yellow}Non-interactive update detected, using fallback server IP 127.0.0.1.${plain}"
+            server_ip="127.0.0.1"
+        else
+            while [[ -z "$server_ip" ]]; do
+                read -rp "Please enter your server's public IPv4 address: " server_ip
+                server_ip="${server_ip// /}"
+                if [[ ! "$server_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    echo -e "${red}Invalid IPv4 address. Please try again.${plain}"
+                    server_ip=""
+                fi
+            done
+        fi
     fi
 
     # Handle missing/short webBasePath
@@ -852,24 +857,28 @@ config_after_update() {
 
     # Check and prompt for SSL if missing
     if [[ -z "$existing_cert" ]]; then
-        echo ""
-        echo -e "${red}═══════════════════════════════════════════${plain}"
-        echo -e "${red}      ⚠ NO SSL CERTIFICATE DETECTED ⚠     ${plain}"
-        echo -e "${red}═══════════════════════════════════════════${plain}"
-        echo -e "${yellow}For security, SSL certificate is MANDATORY for all panels.${plain}"
-        echo -e "${yellow}Let's Encrypt now supports both domains and IP addresses!${plain}"
-        echo ""
+        if [[ "${dui_update_run_id}" -ne "0" ]]; then
+            echo -e "${yellow}No SSL certificate detected. Skipping SSL setup during non-interactive dashboard update.${plain}"
+        else
+            echo ""
+            echo -e "${red}═══════════════════════════════════════════${plain}"
+            echo -e "${red}      ⚠ NO SSL CERTIFICATE DETECTED ⚠     ${plain}"
+            echo -e "${red}═══════════════════════════════════════════${plain}"
+            echo -e "${yellow}For security, SSL certificate is MANDATORY for all panels.${plain}"
+            echo -e "${yellow}Let's Encrypt now supports both domains and IP addresses!${plain}"
+            echo ""
 
-        # Prompt and setup SSL (domain or IP)
-        prompt_and_setup_ssl "${existing_port}" "${existing_webBasePath}" "${server_ip}"
+            # Prompt and setup SSL (domain or IP)
+            prompt_and_setup_ssl "${existing_port}" "${existing_webBasePath}" "${server_ip}"
 
-        echo ""
-        echo -e "${green}═══════════════════════════════════════════${plain}"
-        echo -e "${green}     Panel Access Information              ${plain}"
-        echo -e "${green}═══════════════════════════════════════════${plain}"
-        echo -e "${green}Access URL: https://${SSL_HOST}:${existing_port}/${existing_webBasePath}${plain}"
-        echo -e "${green}═══════════════════════════════════════════${plain}"
-        echo -e "${yellow}⚠ SSL Certificate: Enabled and configured${plain}"
+            echo ""
+            echo -e "${green}═══════════════════════════════════════════${plain}"
+            echo -e "${green}     Panel Access Information              ${plain}"
+            echo -e "${green}═══════════════════════════════════════════${plain}"
+            echo -e "${green}Access URL: https://${SSL_HOST}:${existing_port}/${existing_webBasePath}${plain}"
+            echo -e "${green}═══════════════════════════════════════════${plain}"
+            echo -e "${yellow}⚠ SSL Certificate: Enabled and configured${plain}"
+        fi
     else
         echo -e "${green}SSL certificate is already configured${plain}"
         # Show access URL with existing certificate

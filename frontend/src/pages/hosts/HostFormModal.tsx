@@ -166,6 +166,7 @@ export default function HostFormModal({ open, mode, host, inboundOptions, save, 
                     <Select
                       options={inboundSelectOptions}
                       showSearch
+                      allowClear
                       optionFilterProp="label"
                       disabled={mode === 'edit'}
                       placeholder={t('pages.hosts.selectInbound')}

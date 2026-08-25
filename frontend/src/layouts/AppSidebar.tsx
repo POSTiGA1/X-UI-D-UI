@@ -5,18 +5,17 @@ import { useTranslation } from 'react-i18next';
 import { Drawer, Layout, Menu } from 'antd';
 import type { MenuProps } from 'antd';
 import {
-  ApiOutlined,
+  ApartmentOutlined,
+  AppstoreOutlined,
   CloseOutlined,
   CloudServerOutlined,
   ClusterOutlined,
   CodeOutlined,
-  DashboardOutlined,
   DatabaseOutlined,
   ExportOutlined,
   GithubOutlined,
   GlobalOutlined,
   HeartOutlined,
-  ImportOutlined,
   LogoutOutlined,
   MailOutlined,
   MenuOutlined,
@@ -24,6 +23,7 @@ import {
   MoonFilled,
   MoonOutlined,
   ReadOutlined,
+  SafetyCertificateOutlined,
   SafetyOutlined,
   SettingOutlined,
   SunOutlined,
@@ -37,6 +37,11 @@ import { HttpUtil } from '@/utils';
 import { formatPanelVersion } from '@/lib/panel-version';
 import { pauseAnimationsUntilLeave, useTheme } from '@/hooks/useTheme';
 import { useAllSettings } from '@/api/queries/useAllSettings';
+import { useQuery } from '@tanstack/react-query';
+import { useHostsQuery } from '@/api/queries/useHostsQuery';
+import { useNodesQuery } from '@/api/queries/useNodesQuery';
+import { keys } from '@/api/queryKeys';
+import { getAdminTranslations } from '@/utils/adminI18n';
 import './AppSidebar.css';
 
 const SIDEBAR_COLLAPSED_KEY = 'isSidebarCollapsed';
@@ -47,20 +52,38 @@ const LOGOUT_KEY = '__logout__';
 
 type IconName = 'dashboard' | 'inbound' | 'team' | 'groups' | 'setting' | 'tool' | 'cluster' | 'hosts' | 'logout' | 'apidocs' | 'outbound' | 'routing' | 'security';
 
-const iconByName: Record<IconName, ComponentType> = {
-  dashboard: DashboardOutlined,
-  inbound: ImportOutlined,
+const iconByName: Record<IconName, ComponentType<{ style?: React.CSSProperties }>> = {
+  dashboard: AppstoreOutlined,
+  inbound: ApartmentOutlined,
   team: TeamOutlined,
   groups: TagsOutlined,
   setting: SettingOutlined,
   tool: ToolOutlined,
-  cluster: ClusterOutlined,
+  cluster: DatabaseOutlined,
   hosts: GlobalOutlined,
   logout: LogoutOutlined,
-  apidocs: ApiOutlined,
+  apidocs: CodeOutlined,
   outbound: ExportOutlined,
   routing: SwapOutlined,
-  security: SafetyOutlined,
+  security: SafetyCertificateOutlined,
+};
+
+const iconColorByKey: Record<string, string> = {
+  '/': '#00b4d8',
+  '/inbounds': '#06b6d4',
+  '/clients': '#f59e0b',
+  '/groups': '#14b8a6',
+  '/inbound-groups': '#6366f1',
+  'admin-access-parent': '#00b4d8',
+  '/authentication': '#00b4d8',
+  '/nodes': '#8b5cf6',
+  '/hosts': '#f97316',
+  '/outbound': '#a855f7',
+  '/routing': '#c084fc',
+  '/api-docs': '#14b8a6',
+  '/settings': '#94a3b8',
+  '/xray': '#38bdf8',
+  [LOGOUT_KEY]: '#ef4444',
 };
 
 function readCollapsed(): boolean {
@@ -110,10 +133,10 @@ function VersionBadge({ version, collapsed }: { version: string; collapsed?: boo
       target="_blank"
       rel="noopener noreferrer"
       className={`sider-version${collapsed ? ' is-collapsed' : ''}`}
-      aria-label={`GitHub ${label}`}
-      title={label}
+      aria-label={`GitHub Daltoon-UI ${label}`}
+      title={`GitHub Daltoon-UI ${label}`}
     >
-      <GithubOutlined />
+      <GithubOutlined style={{ fontSize: 16 }} />
       {!collapsed && <span className="sider-version-text">{label}</span>}
     </a>
   );
@@ -179,58 +202,6 @@ function getDeveloperByText(lng: string): string {
   return 'Developer By';
 }
 
-function getAdminAccessText(lng: string): string {
-  const code = lng.toLowerCase();
-  if (code.startsWith('fa')) {
-    return 'دسترسی ادمین';
-  }
-  if (code.startsWith('ar')) {
-    return 'صلاحية الأدمن';
-  }
-  if (code.startsWith('ru')) {
-    return 'Доступ администратора';
-  }
-  if (code.startsWith('zh-tw') || code.startsWith('zh-hk')) {
-    return '管理員權限';
-  }
-  if (code.startsWith('zh')) {
-    return '管理员权限';
-  }
-  if (code.startsWith('tr')) {
-    return 'Admin Erişimi';
-  }
-  if (code.startsWith('es')) {
-    return 'Acceso de administrador';
-  }
-  if (code.startsWith('pt')) {
-    return 'Acesso do Administrador';
-  }
-  if (code.startsWith('vi')) {
-    return 'Quyền truy cập Admin';
-  }
-  if (code.startsWith('ja')) {
-    return '管理者権限';
-  }
-  if (code.startsWith('uk')) {
-    return 'Доступ адміністратора';
-  }
-  if (code.startsWith('id')) {
-    return 'Akses Admin';
-  }
-  return 'Admin Access';
-}
-
-function getAuthenticationText(lng: string): string {
-  const code = lng.toLowerCase();
-  if (code.startsWith('fa')) {
-    return 'احراز هویت';
-  }
-  if (code.startsWith('ar')) {
-    return 'المصادقة';
-  }
-  return 'Authentication';
-}
-
 export default function AppSidebar() {
   const { t, i18n } = useTranslation();
   const { isDark, isUltra, toggleTheme, toggleUltra } = useTheme();
@@ -259,7 +230,9 @@ export default function AppSidebar() {
   }, [currentAdmin]);
 
   const currentTheme: 'light' | 'dark' = isDark ? 'dark' : 'light';
-  const panelVersion = window.X_UI_CUR_VER || 'v1.0.3';
+  const panelVersion = window.X_UI_CUR_VER || 'v1.9.3';
+
+  const adminTranslations = useMemo(() => getAdminTranslations(i18n.language), [i18n.language]);
 
   const tabs = useMemo<{ key: string; icon: IconName; title: string }[]>(() => {
     const allTabs = [
@@ -269,7 +242,7 @@ export default function AppSidebar() {
       { key: '/groups', icon: 'groups' as IconName, title: t('menu.groups') },
       { key: '/nodes', icon: 'cluster' as IconName, title: t('menu.nodes') },
       { key: '/hosts', icon: 'hosts' as IconName, title: t('menu.hosts') },
-      { key: 'admin-access-parent', icon: 'security' as IconName, title: getAdminAccessText(i18n.language || 'en-US') },
+      { key: 'admin-access-parent', icon: 'security' as IconName, title: adminTranslations.adminAccess },
       { key: '/outbound', icon: 'outbound' as IconName, title: t('menu.outbounds') },
       { key: '/routing', icon: 'routing' as IconName, title: t('menu.routing') },
       { key: '/settings', icon: 'setting' as IconName, title: t('menu.settings') },
@@ -281,48 +254,102 @@ export default function AppSidebar() {
       ? !!window.X_UI_IS_RESELLER
       : !!localStorage.getItem('daltoon_current_admin');
     if (isReseller) {
-      // Reseller has ONLY access to Dashboard, Clients, Authentication, and Logout
       return [
         { key: '/', icon: 'dashboard' as IconName, title: t('menu.dashboard') },
         { key: '/clients', icon: 'team' as IconName, title: t('menu.clients') },
-        { key: '/authentication', icon: 'security' as IconName, title: getAuthenticationText(i18n.language || 'en-US') },
+        { key: '/authentication', icon: 'security' as IconName, title: adminTranslations.authentication },
         { key: LOGOUT_KEY, icon: 'logout' as IconName, title: t('logout') },
       ];
     }
     return allTabs;
-  }, [t, i18n.language]);
+  }, [t, adminTranslations]);
 
   const navItems = useMemo(() => tabs.filter((tab) => tab.icon !== 'logout'), [tabs]);
   const utilItems = useMemo(() => tabs.filter((tab) => tab.icon === 'logout'), [tabs]);
 
   const settingsChildren = useMemo<NonNullable<MenuProps['items']>>(() => {
     const children: NonNullable<MenuProps['items']> = [
-      { key: '/settings#general', icon: <SettingOutlined />, label: t('pages.settings.panelSettings') },
-      { key: '/settings#security', icon: <SafetyOutlined />, label: t('pages.settings.securitySettings') },
-      { key: '/settings#telegram', icon: <MessageOutlined />, label: t('pages.settings.TGBotSettings') },
-      { key: '/settings#email', icon: <MailOutlined />, label: t('pages.settings.emailSettings') },
-      { key: '/settings#subscription', icon: <CloudServerOutlined />, label: t('pages.settings.subSettings') },
+      { key: '/settings#general', icon: <SettingOutlined style={{ color: '#00b4d8' }} />, label: t('pages.settings.panelSettings') },
+      { key: '/settings#security', icon: <SafetyOutlined style={{ color: '#f43f5e' }} />, label: t('pages.settings.securitySettings') },
+      { key: '/settings#telegram', icon: <MessageOutlined style={{ color: '#0ea5e9' }} />, label: t('pages.settings.TGBotSettings') },
+      { key: '/settings#email', icon: <MailOutlined style={{ color: '#f59e0b' }} />, label: t('pages.settings.emailSettings') },
+      { key: '/settings#subscription', icon: <CloudServerOutlined style={{ color: '#8b5cf6' }} />, label: t('pages.settings.subSettings') },
     ];
     if (showSubFormats) {
-      children.push({ key: '/settings#subscription-formats', icon: <CodeOutlined />, label: 'Sub Formats' });
+      children.push({ key: '/settings#subscription-formats', icon: <CodeOutlined style={{ color: '#ec4899' }} />, label: 'Sub Formats' });
     }
     return children;
   }, [t, showSubFormats]);
 
   const xrayChildren = useMemo<NonNullable<MenuProps['items']>>(() => [
-    { key: '/xray#basic', icon: <SettingOutlined />, label: t('pages.xray.basicTemplate') },
-    { key: '/xray#balancer', icon: <ClusterOutlined />, label: t('pages.xray.Balancers') },
-    { key: '/xray#dns', icon: <DatabaseOutlined />, label: 'DNS' },
-    { key: '/xray#advanced', icon: <CodeOutlined />, label: t('pages.xray.advancedTemplate') },
+    { key: '/xray#basic', icon: <SettingOutlined style={{ color: '#38bdf8' }} />, label: t('pages.xray.basicTemplate') },
+    { key: '/xray#balancer', icon: <ClusterOutlined style={{ color: '#a855f7' }} />, label: t('pages.xray.Balancers') },
+    { key: '/xray#dns', icon: <DatabaseOutlined style={{ color: '#00b4d8' }} />, label: 'DNS' },
+    { key: '/xray#advanced', icon: <CodeOutlined style={{ color: '#f97316' }} />, label: t('pages.xray.advancedTemplate') },
   ], [t]);
 
+  // Dynamic counts for menu badges
+  const { hosts } = useHostsQuery();
+  const hostsCount = hosts?.length ?? 0;
+
+  const { nodes } = useNodesQuery();
+  const nodesCount = nodes?.length ?? 0;
+
+  const { data: slimInboundsData } = useQuery({
+    queryKey: keys.inbounds.slim(),
+    queryFn: async () => {
+      const msg = await HttpUtil.get<unknown[]>('/panel/api/inbounds/list/slim', undefined, { silent: true });
+      return Array.isArray(msg?.obj) ? msg.obj : [];
+    },
+    staleTime: 15000,
+  });
+  const inboundsCount = Array.isArray(slimInboundsData) ? slimInboundsData.length : 0;
+
+  const { data: groupsData } = useQuery({
+    queryKey: keys.clients.groups(),
+    queryFn: async () => {
+      const msg = await HttpUtil.get<unknown[]>('/panel/api/clients/groups', undefined, { silent: true });
+      return Array.isArray(msg?.obj) ? msg.obj : [];
+    },
+    staleTime: 15000,
+  });
+  const groupsCount = groupsData ? groupsData.length : 0;
+
+  const { data: clientsTotalData } = useQuery({
+    queryKey: ['clients', 'totalBadgeCount'],
+    queryFn: async () => {
+      const msg = await HttpUtil.get<{ total?: number }>('/panel/api/clients/list/paged?page=1&pageSize=1', undefined, { silent: true });
+      return msg?.obj?.total ?? 0;
+    },
+    staleTime: 10000,
+  });
+  const clientsCount = typeof clientsTotalData === 'number' ? clientsTotalData : 0;
+
+  const { data: adminsData } = useQuery({
+    queryKey: ['admins', 'badgeList'],
+    queryFn: async () => {
+      const msg = await HttpUtil.get<unknown[]>('/panel/api/admins/list', undefined, { silent: true });
+      return Array.isArray(msg?.obj) ? msg.obj : [];
+    },
+    staleTime: 15000,
+  });
+  const adminsCount = adminsData ? adminsData.length : 0;
+
   const adminChildren = useMemo<NonNullable<MenuProps['items']>>(() => {
-    const isFa = i18n.language?.startsWith('fa');
     return [
-      { key: '/admin-access', icon: <TeamOutlined />, label: isFa ? 'لیست ادمین‌ها' : 'Admins List' },
-      { key: '/clients-admin', icon: <SafetyOutlined />, label: isFa ? 'کلاینت‌های ادمین' : 'Clients Admin' },
+      {
+        key: '/admin-access',
+        icon: <TeamOutlined style={{ color: '#00b4d8' }} />,
+        label: (
+          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <span>{adminTranslations.adminsList}</span>
+            <span className="menu-pill pill-green">{adminsCount}</span>
+          </span>
+        ),
+      },
+      { key: '/clients-admin', icon: <SafetyOutlined style={{ color: '#ec4899' }} />, label: adminTranslations.clientsAdmin },
     ];
-  }, [i18n.language]);
+  }, [adminTranslations, adminsCount]);
 
   const settingsActive = pathname === '/settings';
   const xrayActive = pathname === '/xray';
@@ -349,32 +376,88 @@ export default function AppSidebar() {
   const toMenuItems = useCallback((items: typeof tabs): MenuProps['items'] =>
     items.map((tab) => {
       const Icon = iconByName[tab.icon];
+
+      // Render badge pills dynamically with actual counts
+      let pillBadge: React.ReactNode = null;
+      if (tab.key === '/inbounds') pillBadge = <span className="menu-pill pill-cyan">{inboundsCount}</span>;
+      if (tab.key === '/clients') pillBadge = <span className="menu-pill pill-amber">{clientsCount}</span>;
+      if (tab.key === '/groups') pillBadge = <span className="menu-pill pill-teal">{groupsCount}</span>;
+      if (tab.key === '/nodes') pillBadge = <span className="menu-pill pill-purple">{nodesCount}</span>;
+      if (tab.key === '/hosts') pillBadge = <span className="menu-pill pill-orange">{hostsCount}</span>;
+      if (tab.key === 'admin-access-parent') pillBadge = <span className="menu-pill pill-green">{adminsCount}</span>;
+
+      const labelNode = (
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+          <span>{tab.title}</span>
+          {pillBadge}
+        </span>
+      );
+
+      const iconColor = iconColorByKey[tab.key] || '#00b4d8';
+
       if (tab.key === '/settings') {
-        return { key: tab.key, icon: <Icon />, label: tab.title, children: settingsChildren };
+        return { key: tab.key, icon: <Icon style={{ color: iconColor }} />, label: labelNode, children: settingsChildren };
       }
       if (tab.key === '/xray') {
-        return { key: tab.key, icon: <Icon />, label: tab.title, children: xrayChildren };
+        return { key: tab.key, icon: <Icon style={{ color: iconColor }} />, label: labelNode, children: xrayChildren };
       }
       if (tab.key === 'admin-access-parent') {
-        return { key: tab.key, icon: <Icon />, label: tab.title, children: adminChildren };
+        return { key: tab.key, icon: <Icon style={{ color: iconColor }} />, label: labelNode, children: adminChildren };
       }
       if (tab.key === LOGOUT_KEY) {
-        return { key: tab.key, icon: <Icon />, label: tab.title };
+        return { key: tab.key, icon: <Icon style={{ color: iconColor }} />, label: <span style={{ color: '#ef4444' }}>{tab.title}</span> };
       }
-      return { key: tab.key, icon: <Icon />, label: tab.title };
+      return { key: tab.key, icon: <Icon style={{ color: iconColor }} />, label: labelNode };
     }),
-  [settingsChildren, xrayChildren, adminChildren]);
+  [settingsChildren, xrayChildren, adminChildren, inboundsCount, clientsCount, groupsCount, nodesCount, hostsCount, adminsCount]);
 
   const openLink = useCallback(async (key: string) => {
     if (key === LOGOUT_KEY) {
-      const currentAdminRaw = localStorage.getItem('daltoon_current_admin');
-      if (currentAdminRaw) {
-        localStorage.removeItem('daltoon_current_admin');
-        window.location.href = window.X_UI_BASE_PATH || '/';
-        return;
+      const isReseller = (typeof window !== 'undefined' && typeof window.X_UI_BASE_PATH !== 'undefined')
+        ? !!(window as unknown as { X_UI_IS_RESELLER?: boolean }).X_UI_IS_RESELLER
+        : !!localStorage.getItem('daltoon_current_admin');
+
+      let webPath: string | null = (window as unknown as { X_UI_RESELLER_WEB_PATH?: string }).X_UI_RESELLER_WEB_PATH || null;
+
+      if (!webPath && isReseller) {
+        const currentAdminRaw = localStorage.getItem('daltoon_current_admin');
+        if (currentAdminRaw) {
+          try {
+            const parsed = JSON.parse(currentAdminRaw);
+            if (parsed?.webPath) {
+              webPath = parsed.webPath;
+            }
+          } catch {
+            // ignore parse error
+          }
+        }
       }
-      await HttpUtil.post('/logout');
-      window.location.href = window.X_UI_BASE_PATH || '/';
+
+      let logoutRedirect = window.X_UI_BASE_PATH || '/';
+      if (isReseller && webPath) {
+        const cleanBase = logoutRedirect.endsWith('/') ? logoutRedirect : logoutRedirect + '/';
+        const cleanBaseLower = cleanBase.toLowerCase();
+        const webPathLower = String(webPath).toLowerCase();
+        const rootBase = cleanBaseLower.includes('/' + webPathLower + '/')
+          ? cleanBase.substring(0, cleanBaseLower.indexOf('/' + webPathLower + '/')) + '/'
+          : cleanBase;
+        logoutRedirect = `${rootBase}portal/${webPath}`;
+      } else {
+        const cleanBase = logoutRedirect.endsWith('/') ? logoutRedirect : logoutRedirect + '/';
+        logoutRedirect = cleanBase;
+      }
+
+      localStorage.removeItem('daltoon_current_admin');
+      sessionStorage.removeItem('daltoon_is_reseller');
+      sessionStorage.removeItem('daltoon_reseller_webpath');
+      localStorage.removeItem('daltoon_reseller_webpath');
+
+      try {
+        await HttpUtil.post('logout');
+      } catch {
+        // ignore network error on logout
+      }
+      window.location.replace(logoutRedirect);
       return;
     }
     navigate(key);
@@ -458,7 +541,7 @@ export default function AppSidebar() {
                 href="https://t.me/mDaltoon"
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ color: '#1677ff', fontWeight: 'bold' }}
+                style={{ color: '#00b4d8', fontWeight: 'bold' }}
               >
                 mDaltoon
               </a>
@@ -472,11 +555,11 @@ export default function AppSidebar() {
         placement="left"
         closable={false}
         open={drawerOpen}
-        rootClassName={currentTheme}
-        size="min(82vw, 320px)"
+        rootClassName={`pasarguard-drawer ${currentTheme}`}
+        size="min(86vw, 340px)"
         styles={{
           wrapper: { padding: 0 },
-          body: { padding: 0, display: 'flex', flexDirection: 'column', height: '100%' },
+          body: { padding: 0, display: 'flex', flexDirection: 'column', height: '100%', background: isDark ? '#0d0f14' : '#ffffff' },
           header: { display: 'none' },
         }}
         onClose={() => setDrawerOpen(false)}
@@ -505,24 +588,28 @@ export default function AppSidebar() {
             </button>
           </div>
         </div>
-        <Menu
-          theme={currentTheme}
-          mode="inline"
-          selectedKeys={[selectedKey]}
-          openKeys={openKeys}
-          onOpenChange={(keys) => setOpenKeys(keys as string[])}
-          className="drawer-menu drawer-nav"
-          items={toMenuItems(navItems)}
-          onClick={(info) => { onMenuClick(info); setDrawerOpen(false); }}
-        />
-        <Menu
-          theme={currentTheme}
-          mode="inline"
-          selectedKeys={[selectedKey]}
-          className="drawer-menu drawer-utility"
-          items={toMenuItems(utilItems)}
-          onClick={(info) => { onMenuClick(info); setDrawerOpen(false); }}
-        />
+
+        <div className="drawer-menu-container">
+          <Menu
+            theme={currentTheme}
+            mode="inline"
+            selectedKeys={[selectedKey]}
+            openKeys={openKeys}
+            onOpenChange={(keys) => setOpenKeys(keys as string[])}
+            className="drawer-menu drawer-nav"
+            items={toMenuItems(navItems)}
+            onClick={(info) => { onMenuClick(info); setDrawerOpen(false); }}
+          />
+          <Menu
+            theme={currentTheme}
+            mode="inline"
+            selectedKeys={[selectedKey]}
+            className="drawer-menu drawer-utility"
+            items={toMenuItems(utilItems)}
+            onClick={(info) => { onMenuClick(info); setDrawerOpen(false); }}
+          />
+        </div>
+
         <div className="drawer-footer">
           <div className="developer-footer" style={{ padding: '0 8px 8px', fontSize: '12px', opacity: 0.8 }}>
             <span>{getDeveloperByText(i18n.language || 'en-US')} </span>
@@ -530,7 +617,7 @@ export default function AppSidebar() {
               href="https://t.me/mDaltoon"
               target="_blank"
               rel="noopener noreferrer"
-              style={{ color: '#1677ff', fontWeight: 'bold' }}
+              style={{ color: '#00b4d8', fontWeight: 'bold' }}
             >
               mDaltoon
             </a>
@@ -543,12 +630,13 @@ export default function AppSidebar() {
         <button
           className="drawer-handle"
           type="button"
-          aria-label={t('menu.openMenu')}
+          aria-label={t('menu.openMenu') || 'Menu'}
           onClick={() => setDrawerOpen(true)}
         >
-          <MenuOutlined />
+          <MenuOutlined style={{ fontSize: 16 }} />
         </button>
       )}
     </div>
   );
 }
+

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -70,8 +71,11 @@ func (a *ClientController) filterResellerInbounds(c *gin.Context, inboundIds []i
 		allowedMap[id] = true
 	}
 
-	if len(inboundIds) == 0 {
+	if inboundIds == nil {
 		return allowed, nil
+	}
+	if len(inboundIds) == 0 {
+		return []int{}, nil
 	}
 
 	var filtered []int
@@ -236,6 +240,18 @@ func (a *ClientController) create(c *gin.Context) {
 	}
 	if session.IsResellerLogin(c) {
 		payload.Client.CreatedBy = session.GetLoginResellerUsername(c)
+		resellerId := session.GetLoginReseller(c)
+		var reseller model.ResellerAdmin
+		if err := database.GetDB().Where("id = ?", resellerId).First(&reseller).Error; err == nil {
+			if reseller.ClientLimit > 0 {
+				var count int64
+				database.GetDB().Model(&model.ClientRecord{}).Where("created_by = ?", reseller.Username).Count(&count)
+				if int(count) >= reseller.ClientLimit {
+					jsonMsg(c, I18nWeb(c, "clientLimitReached"), fmt.Errorf("client limit reached"))
+					return
+				}
+			}
+		}
 	}
 	var err error
 	payload.InboundIds, err = a.filterResellerInbounds(c, payload.InboundIds)
@@ -510,6 +526,22 @@ func (a *ClientController) bulkCreate(c *gin.Context) {
 	}
 	if session.IsResellerLogin(c) {
 		resellerUsername := session.GetLoginResellerUsername(c)
+		resellerId := session.GetLoginReseller(c)
+		var reseller model.ResellerAdmin
+		var clientLimit int
+		if err := database.GetDB().Where("id = ?", resellerId).First(&reseller).Error; err == nil {
+			clientLimit = reseller.ClientLimit
+		}
+
+		if clientLimit > 0 {
+			var count int64
+			database.GetDB().Model(&model.ClientRecord{}).Where("created_by = ?", resellerUsername).Count(&count)
+			if int(count)+len(payloads) > clientLimit {
+				jsonMsg(c, I18nWeb(c, "clientLimitReached"), fmt.Errorf("client limit reached"))
+				return
+			}
+		}
+
 		for i := range payloads {
 			payloads[i].Client.CreatedBy = resellerUsername
 			var err error
@@ -672,6 +704,48 @@ func (a *ClientController) clearIps(c *gin.Context) {
 	}
 	jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.logCleanSuccess"), nil)
 }
+
+func formatDestLabel(raw string) string {
+	dest := strings.TrimPrefix(raw, "tcp:")
+	dest = strings.TrimPrefix(dest, "udp:")
+	lower := strings.ToLower(dest)
+	switch {
+	case strings.Contains(lower, "google") || strings.Contains(lower, "142.250.") || strings.Contains(lower, "172.217."):
+		return dest + " (Google Search & Services)"
+	case strings.Contains(lower, "youtube") || strings.Contains(lower, "googlevideo") || strings.Contains(lower, "ytimg"):
+		return dest + " (YouTube Streaming & Media)"
+	case strings.Contains(lower, "instagram") || strings.Contains(lower, "cdninstagram"):
+		return dest + " (Instagram Reels & Feed)"
+	case strings.Contains(lower, "whatsapp"):
+		return dest + " (WhatsApp Web & Calls)"
+	case strings.Contains(lower, "telegram") || strings.Contains(lower, "149.154.") || strings.Contains(lower, "91.108."):
+		return dest + " (Telegram Messenger & Media)"
+	case strings.Contains(lower, "facebook") || strings.Contains(lower, "fbcdn") || strings.Contains(lower, "meta"):
+		return dest + " (Meta & Facebook Services)"
+	case strings.Contains(lower, "twitter") || strings.Contains(lower, "twimg") || strings.Contains(lower, "t.co"):
+		return dest + " (X / Twitter)"
+	case strings.Contains(lower, "tiktok") || strings.Contains(lower, "byteoversea"):
+		return dest + " (TikTok Video Feed)"
+	case strings.Contains(lower, "cloudflare") || strings.Contains(lower, "1.1.1.1") || strings.Contains(lower, "1.0.0.1"):
+		return dest + " (Cloudflare Edge & DNS)"
+	default:
+		return dest
+	}
+}
+
+func formatBytes(b int64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.2f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
 
 func (a *ClientController) onlines(c *gin.Context) {
 	onlines := a.inboundService.GetOnlineClients()

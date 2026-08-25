@@ -30,6 +30,7 @@ import OverviewActionBar from './OverviewActionBar';
 import VitalTile from './VitalTile';
 import ThroughputCard from './ThroughputCard';
 import ConnectionsCard from './ConnectionsCard';
+import OverviewStatsCard from './OverviewStatsCard';
 import SystemStrip from './SystemStrip';
 import { mean, peak, useOverviewHistory } from './useOverviewHistory';
 import type { PanelUpdateInfo } from './PanelUpdateModal';
@@ -269,6 +270,8 @@ export default function IndexPage() {
                   )}
 
                   <hr className="ov-rule" />
+                  
+                  <OverviewStatsCard isMobile={isMobile} />
 
                   <div className="ov-vitals">
                     <VitalTile

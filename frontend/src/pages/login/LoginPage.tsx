@@ -17,6 +17,7 @@ import {
   LockOutlined,
   MoonFilled,
   MoonOutlined,
+  SafetyOutlined,
   SunOutlined,
   TranslationOutlined,
   UserOutlined,
@@ -36,9 +37,32 @@ type LoginForm = LoginFormValues;
 const basePath = window.X_UI_BASE_PATH || '';
 
 export default function LoginPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { isDark, isUltra, toggleTheme, toggleUltra, antdThemeConfig } = useTheme();
   const [messageApi, messageContextHolder] = message.useMessage();
+
+  const isFa = useMemo(() => i18n.language?.startsWith('fa'), [i18n.language]);
+
+  const isResellerPortal = useMemo(() => {
+    const path = window.location.pathname.toLowerCase();
+    if (path.includes('/portal/')) return true;
+    const resellerWebPath = (window as unknown as { X_UI_RESELLER_WEB_PATH?: string }).X_UI_RESELLER_WEB_PATH;
+    if (resellerWebPath && (window as unknown as { X_UI_IS_RESELLER?: boolean }).X_UI_IS_RESELLER) {
+      if (path.includes(`/${resellerWebPath.toLowerCase()}`)) {
+        return true;
+      }
+    }
+    return false;
+  }, []);
+
+  useEffect(() => {
+    if (!isResellerPortal) {
+      localStorage.removeItem('daltoon_current_admin');
+      sessionStorage.removeItem('daltoon_is_reseller');
+      sessionStorage.removeItem('daltoon_reseller_webpath');
+      localStorage.removeItem('daltoon_reseller_webpath');
+    }
+  }, [isResellerPortal]);
 
   useEffect(() => {
     setMessageInstance(messageApi);
@@ -65,18 +89,40 @@ export default function LoginPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const msg = await HttpUtil.post('getTwoFactorEnable');
-      if (cancelled) return;
-      if (msg.success) setTwoFactorEnable(!!msg.obj);
-      setFetched(true);
+      try {
+        const msg = await HttpUtil.post('getTwoFactorEnable');
+        if (cancelled) return;
+        if (msg.success) setTwoFactorEnable(!!msg.obj);
+      } catch {
+        // ignore error
+      } finally {
+        if (!cancelled) setFetched(true);
+      }
     })();
     return () => { cancelled = true; };
+  }, []);
+
+  const resellerWebPath = useMemo(() => {
+    if ((window as unknown as { X_UI_RESELLER_WEB_PATH?: string }).X_UI_RESELLER_WEB_PATH) {
+      return (window as unknown as { X_UI_RESELLER_WEB_PATH?: string }).X_UI_RESELLER_WEB_PATH;
+    }
+    const path = window.location.pathname;
+    const match = path.match(/\/portal\/([^/]+)/i);
+    if (match && match[1]) {
+      return match[1];
+    }
+    return undefined;
   }, []);
 
   const onSubmit = useCallback(async (values: LoginForm) => {
     setSubmitting(true);
     try {
-      const msg = await HttpUtil.post('login', values);
+      const payload: LoginForm = {
+        ...values,
+        isResellerPortal: isResellerPortal,
+        portalWebPath: resellerWebPath,
+      };
+      const msg = await HttpUtil.post('login', payload);
       if (msg.success) {
         const obj = msg.obj as { isReseller?: boolean; webPath?: string; username?: string; remark?: string } | null;
         if (obj?.isReseller && obj?.webPath) {
@@ -102,7 +148,7 @@ export default function LoginPage() {
     } finally {
       setSubmitting(false);
     }
-  }, []);
+  }, [isResellerPortal, resellerWebPath]);
 
   const onLangChange = useCallback((next: string) => {
     setLang(next);
@@ -195,6 +241,17 @@ export default function LoginPage() {
               <div className="login-card">
                 <div className="brand">
                   <span className="brand-name">Daltoon-UI</span>
+                  {isResellerPortal ? (
+                    <div className="portal-tag reseller">
+                      <SafetyOutlined />
+                      <span>{isFa ? 'پورتال نمایندگان' : 'Reseller Portal'}</span>
+                    </div>
+                  ) : (
+                    <div className="portal-tag">
+                      <UserOutlined />
+                      <span>{isFa ? 'مالک پنل' : 'Panel Owner'}</span>
+                    </div>
+                  )}
                   <span className="brand-accent" aria-hidden="true" />
                 </div>
                 <h2 className="welcome">

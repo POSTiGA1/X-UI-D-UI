@@ -890,6 +890,28 @@ func (s *InboundService) DelInbound(id int) (bool, error) {
 		if err := tx.Where("inbound_id = ?", id).Delete(&model.Host{}).Error; err != nil {
 			return err
 		}
+		// Clean up deleted inbound ID from reseller admins
+		var resellerAdmins []model.ResellerAdmin
+		if err := tx.Find(&resellerAdmins).Error; err == nil {
+			for _, ra := range resellerAdmins {
+				var ibIds []int
+				if err := json.Unmarshal([]byte(ra.Inbounds), &ibIds); err == nil && len(ibIds) > 0 {
+					newIbIds := make([]int, 0, len(ibIds))
+					changed := false
+					for _, existingId := range ibIds {
+						if existingId == id {
+							changed = true
+						} else {
+							newIbIds = append(newIbIds, existingId)
+						}
+					}
+					if changed {
+						newJson, _ := json.Marshal(newIbIds)
+						_ = tx.Model(&model.ResellerAdmin{}).Where("id = ?", ra.Id).Update("inbounds", string(newJson)).Error
+					}
+				}
+			}
+		}
 		if markDirty && ib.NodeID != nil {
 			return (&NodeService{}).MarkNodeDirtyTx(tx, *ib.NodeID)
 		}

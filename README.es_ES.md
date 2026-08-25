@@ -18,9 +18,9 @@
   <a href="https://goreportcard.com/report/github.com/mdaltoon10/D-UI/v3"><img src="https://goreportcard.com/badge/github.com/mdaltoon10/D-UI/v3" alt="Go Report Card"></a>
 </p>
 
-**Daltoon-UI** es un panel de control web avanzado y de código abierto para gestionar servidores [Xray-core](https://github.com/XTLS/Xray-core). Ofrece una interfaz limpia y multilingüe para desplegar, configurar y monitorear una amplia gama de protocolos de proxy y VPN — desde un único VPS hasta despliegues multinodo.
+**D-UI** es un panel de control web avanzado y de código abierto para gestionar servidores [Xray-core](https://github.com/XTLS/Xray-core). Ofrece una interfaz limpia y multilingüe para desplegar, configurar y monitorear una amplia gama de protocolos de proxy y VPN — desde un único VPS hasta despliegues multinodo.
 
-Construido como un fork mejorado del proyecto Daltoon-UI original, Daltoon-UI añade un soporte de protocolos más amplio, mayor estabilidad, contabilidad de tráfico por cliente y muchas funciones que mejoran la experiencia de uso.
+Construido como un fork mejorado del proyecto D-UI original, D-UI añade un soporte de protocolos más amplio, mayor estabilidad, contabilidad de tráfico por cliente y muchas funciones que mejoran la experiencia de uso.
 
 > [!IMPORTANT]
 > Este proyecto está destinado únicamente al uso personal. Por favor, no lo uses para fines ilegales ni en un entorno de producción.
@@ -48,10 +48,10 @@ Construido como un fork mejorado del proyecto Daltoon-UI original, Daltoon-UI a�
 bash <(curl -Ls https://raw.githubusercontent.com/mdaltoon10/D-UI/main/install.sh)
 ```
 
-Para instalar una versión específica, añade su etiqueta (p. ej. `v1.4.1`):
+Para instalar una versión específica, añade su etiqueta (p. ej. `v3.0.2`):
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/mdaltoon10/D-UI/main/install.sh) v1.4.1
+bash <(curl -Ls https://raw.githubusercontent.com/mdaltoon10/D-UI/main/install.sh) v3.0.2
 ```
 
 Para instalar la versión **dev** continua (la última prelanzamiento por commit desde `main`, no una versión estable), pasa `dev-latest`:
@@ -82,7 +82,7 @@ ninguna pregunta, generando credenciales aleatorias y escribiéndolas en
 
 ## Opciones de Base de Datos
 
-Daltoon-UI admite dos backends, que se eligen durante la instalación:
+D-UI admite dos backends, que se eligen durante la instalación:
 
 - **SQLite** (predeterminado) — un único archivo en `/etc/d-ui/d-ui.db`. Sin configuración, ideal para despliegues pequeños y medianos.
 - **PostgreSQL** — recomendado para un gran número de clientes o configuraciones multinodo. El instalador puede instalar PostgreSQL localmente por ti, o aceptar un DSN a un servidor existente.

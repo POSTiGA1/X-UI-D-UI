@@ -82,6 +82,7 @@ func (a *AdminController) list(c *gin.Context) {
 		Enable           bool     `json:"enable"`
 		ClientsCount     int      `json:"clientsCount"`
 		TrafficUsedBytes int64    `json:"trafficUsedBytes"`
+		ClientLimit      int      `json:"clientLimit"`
 	}
 
 	resp := make([]AdminResp, len(admins))
@@ -106,6 +107,7 @@ func (a *AdminController) list(c *gin.Context) {
 			Enable: ad.Enable,
 			ClientsCount: ad.ClientsCount,
 			TrafficUsedBytes: ad.TrafficUsedBytes,
+			ClientLimit: ad.ClientLimit,
 		}
 	}
 	
@@ -113,15 +115,16 @@ func (a *AdminController) list(c *gin.Context) {
 }
 
 type adminForm struct {
-	Id         string  `json:"id"`
-	Remark     string  `json:"remark"`
-	Username   string  `json:"username"`
-	Password   string  `json:"password"`
-	VolumeGB   int64   `json:"volumeGB"`
-	Days       int     `json:"days"`
-	WebPath    string  `json:"webPath"`
-	Inbounds   []int   `json:"inbounds"`
-	Enable     bool    `json:"enable"`
+	Id          string  `json:"id"`
+	Remark      string  `json:"remark"`
+	Username    string  `json:"username"`
+	Password    string  `json:"password"`
+	VolumeGB    int64   `json:"volumeGB"`
+	Days        int     `json:"days"`
+	WebPath     string  `json:"webPath"`
+	Inbounds    []int   `json:"inbounds"`
+	Enable      bool    `json:"enable"`
+	ClientLimit int     `json:"clientLimit"`
 }
 
 func (a *AdminController) add(c *gin.Context) {
@@ -138,6 +141,12 @@ func (a *AdminController) add(c *gin.Context) {
 		jsonMsg(c, "Username cannot be empty", errors.New("empty username"))
 		return
 	}
+	reserved := map[string]bool{"panel": true, "assets": true, "api": true, "login": true, "logout": true, "portal": true, "csrf-token": true, "getTwoFactorEnable": true, "sub": true, "json": true, "ws": true, "docs": true, "favicon.ico": true, "robots.txt": true, ".well-known": true, "xui": true, "inbounds": true, "clients": true, "groups": true, "nodes": true, "hosts": true, "settings": true, "xray": true, "outbound": true, "routing": true, "api-docs": true, "admin-access": true, "clients-admin": true, "authentication": true}
+	if reserved[strings.ToLower(webPath)] {
+		jsonMsg(c, "Web path is a reserved keyword", errors.New("reserved web path"))
+		return
+	}
+
 	if webPath == "" {
 		jsonMsg(c, "Web path cannot be empty", errors.New("empty web path"))
 		return
@@ -163,11 +172,12 @@ func (a *AdminController) add(c *gin.Context) {
 		RawPassword: form.Password,
 		VolumeGB:    form.VolumeGB,
 		Days:        form.Days,
-		WebPath:    webPath,
-		Inbounds:   string(inbBytes),
-		CreatedAt:  time.Now().UnixMilli(),
-		ExpiryTime: expiry,
-		Enable:     form.Enable,
+		WebPath:     webPath,
+		Inbounds:    string(inbBytes),
+		CreatedAt:   time.Now().UnixMilli(),
+		ExpiryTime:  expiry,
+		Enable:      form.Enable,
+		ClientLimit: form.ClientLimit,
 	}
 	
 	err = a.adminService.AddAdmin(admin)
@@ -192,6 +202,12 @@ func (a *AdminController) update(c *gin.Context) {
 		jsonMsg(c, "Username cannot be empty", errors.New("empty username"))
 		return
 	}
+	reserved := map[string]bool{"panel": true, "assets": true, "api": true, "login": true, "logout": true, "portal": true, "csrf-token": true, "getTwoFactorEnable": true, "sub": true, "json": true, "ws": true, "docs": true, "favicon.ico": true, "robots.txt": true, ".well-known": true, "xui": true, "inbounds": true, "clients": true, "groups": true, "nodes": true, "hosts": true, "settings": true, "xray": true, "outbound": true, "routing": true, "api-docs": true, "admin-access": true, "clients-admin": true, "authentication": true}
+	if reserved[strings.ToLower(webPath)] {
+		jsonMsg(c, "Web path is a reserved keyword", errors.New("reserved web path"))
+		return
+	}
+
 	if webPath == "" {
 		jsonMsg(c, "Web path cannot be empty", errors.New("empty web path"))
 		return
@@ -222,10 +238,11 @@ func (a *AdminController) update(c *gin.Context) {
 		RawPassword: form.Password,
 		VolumeGB:    form.VolumeGB,
 		Days:        form.Days,
-		WebPath:    webPath,
-		Inbounds:   string(inbBytes),
-		ExpiryTime: expiry,
-		Enable:     form.Enable,
+		WebPath:     webPath,
+		Inbounds:    string(inbBytes),
+		ExpiryTime:  expiry,
+		Enable:      form.Enable,
+		ClientLimit: form.ClientLimit,
 	}
 	
 	err := a.adminService.UpdateAdmin(admin)
@@ -264,10 +281,16 @@ func (a *AdminController) delete(c *gin.Context) {
 		return
 	}
 	
+	form.Id = strings.TrimSpace(form.Id)
+	if form.Id == "" {
+		jsonMsg(c, "ID cannot be empty", errors.New("empty id"))
+		return
+	}
+
 	// Get the admin username before deleting to clean up their clients
 	db := database.GetDB()
 	var admin model.ResellerAdmin
-	if err := db.Where("id = ?", form.Id).First(&admin).Error; err == nil {
+	if err := db.Where("id = ? OR username = ?", form.Id, form.Id).First(&admin).Error; err == nil {
 		var clients []model.ClientRecord
 		if err := db.Where("created_by = ?", admin.Username).Find(&clients).Error; err == nil && len(clients) > 0 {
 			emails := make([]string, 0, len(clients))
@@ -283,10 +306,17 @@ func (a *AdminController) delete(c *gin.Context) {
 				}
 			}
 		}
+		if err := a.adminService.DeleteAdmin(admin.Id); err != nil {
+			_ = a.adminService.DeleteAdmin(admin.Username)
+		}
+	} else {
+		if err := a.adminService.DeleteAdmin(form.Id); err != nil {
+			jsonMsg(c, "Failed to delete reseller admin", err)
+			return
+		}
 	}
 
-	err := a.adminService.DeleteAdmin(form.Id)
-	jsonMsg(c, "Success", err)
+	jsonMsg(c, "Success", nil)
 }
 
 func (a *AdminController) resetTraffic(c *gin.Context) {
@@ -523,6 +553,33 @@ func (a *AdminController) detachInbounds(c *gin.Context) {
 	if err != nil {
 		jsonMsg(c, "Failed to detach inbounds", err)
 		return
+	}
+
+	// Update admin.Inbounds field to ensure reseller record loses access to detached inbounds
+	if admin.Id != "" {
+		var currentInbounds []int
+		if admin.Inbounds != "" {
+			if err := json.Unmarshal([]byte(admin.Inbounds), &currentInbounds); err != nil {
+				for _, idStr := range strings.Split(admin.Inbounds, ",") {
+					if id, err := strconv.Atoi(strings.TrimSpace(idStr)); err == nil {
+						currentInbounds = append(currentInbounds, id)
+					}
+				}
+			}
+		}
+		detachMap := make(map[int]bool)
+		for _, id := range form.InboundIds {
+			detachMap[id] = true
+		}
+		var updatedInbounds []int
+		for _, id := range currentInbounds {
+			if !detachMap[id] {
+				updatedInbounds = append(updatedInbounds, id)
+			}
+		}
+		sort.Ints(updatedInbounds)
+		inboundsJSON, _ := json.Marshal(updatedInbounds)
+		db.Model(&model.ResellerAdmin{}).Where("id = ?", admin.Id).Update("inbounds", string(inboundsJSON))
 	}
 
 	if needRestart {

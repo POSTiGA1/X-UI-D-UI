@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AutoComplete, Button, Form, Input, InputNumber, Modal, Select, Space, Switch, Tooltip, message } from 'antd';
+import { AutoComplete, Button, Form, Input, InputNumber, Modal, Select, Space, Switch, Tag, Tooltip, message } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
@@ -12,6 +12,32 @@ import { DateTimePicker, SelectAllClearButtons } from '@/components/form';
 import { useClients, type InboundOption } from '@/hooks/useClients';
 import { useFail2banStatusQuery, getLimitIpNotice } from '@/api/queries/useFail2banStatusQuery';
 import { ClientBulkAddFormSchema, type ClientBulkAddFormValues } from '@/schemas/client';
+import { getSpeedTranslations } from '@/utils/speedI18n';
+
+const PRESET_TRAFFIC_GB = [10, 20, 30, 40, 50, 100];
+const PRESET_IP_LIMITS = [1, 2, 3, 4, 5, 6];
+const PRESET_DAYS = [30, 60, 90, 120, 182, 365];
+
+const presetTagBaseStyle: React.CSSProperties = {
+  cursor: 'pointer',
+  margin: '3px 4px',
+  padding: '2px 10px',
+  fontSize: '13px',
+  fontWeight: 600,
+  lineHeight: '22px',
+  borderRadius: '6px',
+  userSelect: 'none',
+  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+};
+
+const getPresetTagStyle = (selected: boolean): React.CSSProperties => ({
+  ...presetTagBaseStyle,
+  background: selected ? 'rgba(0, 180, 216, 0.25)' : 'rgba(0, 180, 216, 0.08)',
+  color: selected ? '#00b4d8' : 'var(--ant-color-text-secondary, #94a3b8)',
+  border: selected ? '1px solid #00b4d8' : '1px solid rgba(0, 180, 216, 0.22)',
+  boxShadow: selected ? '0 0 8px rgba(0, 180, 216, 0.35)' : 'none',
+  transform: selected ? 'scale(1.04)' : 'scale(1)',
+});
 
 const FLOW_OPTIONS = Object.values(TLS_FLOW_CONTROL);
 
@@ -42,6 +68,8 @@ function emptyForm(): FormState {
     comment: '',
     flow: '',
     limitIp: 0,
+    uploadLimit: 0,
+    downloadLimit: 0,
     totalGB: 0,
     expiryTime: 0,
     reset: 0,
@@ -56,7 +84,8 @@ export default function ClientBulkAddModal({
   onOpenChange,
   onSaved,
 }: ClientBulkAddModalProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const speedDict = useMemo(() => getSpeedTranslations(i18n.language), [i18n.language]);
   const [messageApi, messageContextHolder] = message.useMessage();
   const { bulkCreate } = useClients();
 
@@ -69,6 +98,26 @@ export default function ClientBulkAddModal({
       ? !!localStorage.getItem('daltoon_current_admin')
       : false;
   }, []);
+
+  const currentAdmin = useMemo(() => {
+    const raw = localStorage.getItem('daltoon_current_admin');
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const effectiveInboundIds = useMemo(() => {
+    if (isReseller) {
+      if (currentAdmin?.inbounds && currentAdmin.inbounds.length > 0) {
+        return currentAdmin.inbounds;
+      }
+      return (inbounds || []).map((ib) => ib.id);
+    }
+    return null;
+  }, [isReseller, currentAdmin, inbounds]);
 
   const fail2ban = useFail2banStatusQuery();
   const limitIpDisabled = !fail2ban.usable;
@@ -195,11 +244,15 @@ export default function ClientBulkAddModal({
           expiryTime: form.expiryTime,
           reset: Number(form.reset) || 0,
           limitIp: Number(form.limitIp) || 0,
+          uploadLimit: Number(form.uploadLimit) || 0,
+          downloadLimit: Number(form.downloadLimit) || 0,
+          uploadMbps: Number(form.uploadLimit) || 0,
+          downloadMbps: Number(form.downloadLimit) || 0,
           group: form.group,
           comment: form.comment,
           enable: true,
         },
-        inboundIds: form.inboundIds,
+        inboundIds: isReseller ? (effectiveInboundIds || []) : form.inboundIds,
       }));
       const msg = await bulkCreate(payloads);
       const ok = msg?.obj?.created ?? 0;
@@ -234,25 +287,27 @@ export default function ClientBulkAddModal({
         onOk={submit}
         onCancel={() => onOpenChange(false)}
       >
-        <Form colon={false} labelCol={{ sm: { span: 8 } }} wrapperCol={{ sm: { span: 14 } }}>
+         <Form colon={false} labelCol={{ sm: { span: 8 } }} wrapperCol={{ sm: { span: 14 } }}>
           {!isReseller && (
-            <Form.Item label={t('pages.clients.attachedInbounds')} required>
-              <SelectAllClearButtons
-                options={inboundOptions}
-                value={form.inboundIds}
-                onChange={(v) => update('inboundIds', v)}
-              />
-              <Select
-                mode="multiple"
-                value={form.inboundIds}
-                onChange={(v) => update('inboundIds', v)}
-                options={inboundOptions}
-                placeholder={t('pages.clients.selectInbound')}
-                showSearch={{
-                  filterOption: (input, option) => ((option?.label as string) || '').toLowerCase().includes(input.toLowerCase()),
-                }}
-              />
-            </Form.Item>
+            <>
+              <Form.Item label={t('pages.clients.attachedInbounds')} required>
+                <SelectAllClearButtons
+                  options={inboundOptions}
+                  value={form.inboundIds}
+                  onChange={(v) => update('inboundIds', v)}
+                />
+                <Select
+                  mode="multiple"
+                  value={form.inboundIds}
+                  onChange={(v) => update('inboundIds', v)}
+                  options={inboundOptions}
+                  placeholder={t('pages.clients.selectInbound')}
+                  showSearch={{
+                    filterOption: (input, option) => ((option?.label as string) || '').toLowerCase().includes(input.toLowerCase()),
+                  }}
+                />
+              </Form.Item>
+            </>
           )}
 
           <Form.Item label={t('pages.clients.method')}>
@@ -338,7 +393,15 @@ export default function ClientBulkAddModal({
             </Form.Item>
           )}
 
-          <Form.Item label={t('pages.clients.limitIp')}>
+          <Form.Item label={speedDict.uploadLimit} tooltip={speedDict.uploadLimitDesc}>
+            <InputNumber value={form.uploadLimit} min={0} step={1} onChange={(v) => update('uploadLimit', Number(v) || 0)} />
+          </Form.Item>
+
+          <Form.Item label={speedDict.downloadLimit} tooltip={speedDict.downloadLimitDesc}>
+            <InputNumber value={form.downloadLimit} min={0} step={1} onChange={(v) => update('downloadLimit', Number(v) || 0)} />
+          </Form.Item>
+
+          <Form.Item label={t('pages.clients.limitIp')} tooltip={t('pages.clients.limitIpDesc')}>
             <Tooltip title={limitIpNotice || undefined}>
               <span style={{ display: 'inline-flex' }}>
                 <InputNumber value={form.limitIp} min={0} disabled={limitIpDisabled}
@@ -346,10 +409,34 @@ export default function ClientBulkAddModal({
                   onChange={(v) => update('limitIp', Number(v) || 0)} />
               </span>
             </Tooltip>
+            {!limitIpDisabled && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                {PRESET_IP_LIMITS.map((ip) => (
+                  <Tag
+                    key={ip}
+                    style={getPresetTagStyle(form.limitIp === ip)}
+                    onClick={() => update('limitIp', ip)}
+                  >
+                    {ip}
+                  </Tag>
+                ))}
+              </div>
+            )}
           </Form.Item>
 
           <Form.Item label={t('pages.clients.totalGB')}>
             <InputNumber value={form.totalGB} min={0} step={1} onChange={(v) => update('totalGB', Number(v) || 0)} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+              {PRESET_TRAFFIC_GB.map((gb) => (
+                <Tag
+                  key={gb}
+                  style={getPresetTagStyle(form.totalGB === gb)}
+                  onClick={() => update('totalGB', gb)}
+                >
+                  {gb} GB
+                </Tag>
+              ))}
+            </div>
           </Form.Item>
 
           <Form.Item label={t('pages.clients.delayedStart')}>
@@ -366,6 +453,17 @@ export default function ClientBulkAddModal({
                 min={0}
                 onChange={(v) => update('expiryTime', -86400000 * (Number(v) || 0))}
               />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                {PRESET_DAYS.map((days) => (
+                  <Tag
+                    key={days}
+                    style={getPresetTagStyle(delayedExpireDays === days)}
+                    onClick={() => update('expiryTime', -86400000 * days)}
+                  >
+                    {days}d
+                  </Tag>
+                ))}
+              </div>
             </Form.Item>
           ) : (
             <Form.Item label={t('pages.inbounds.expireDate')}>
@@ -373,6 +471,20 @@ export default function ClientBulkAddModal({
                 value={expiryDate}
                 onChange={(next) => update('expiryTime', next ? next.valueOf() : 0)}
               />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                {PRESET_DAYS.map((days) => {
+                  const isSelected = Boolean(expiryDate && Math.abs(expiryDate.diff(dayjs(), 'day') - days) <= 1);
+                  return (
+                    <Tag
+                      key={days}
+                      style={getPresetTagStyle(isSelected)}
+                      onClick={() => update('expiryTime', dayjs().add(days, 'day').valueOf())}
+                    >
+                      {days}d
+                    </Tag>
+                  );
+                })}
+              </div>
             </Form.Item>
           )}
 

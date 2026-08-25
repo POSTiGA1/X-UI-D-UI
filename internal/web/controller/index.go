@@ -21,9 +21,11 @@ import (
 
 // LoginForm represents the login request structure.
 type LoginForm struct {
-	Username      string `json:"username" form:"username"`
-	Password      string `json:"password" form:"password"`
-	TwoFactorCode string `json:"twoFactorCode" form:"twoFactorCode"`
+	Username         string `json:"username" form:"username"`
+	Password         string `json:"password" form:"password"`
+	TwoFactorCode    string `json:"twoFactorCode" form:"twoFactorCode"`
+	IsResellerPortal *bool  `json:"isResellerPortal" form:"isResellerPortal"`
+	PortalWebPath    string `json:"portalWebPath" form:"portalWebPath"`
 }
 
 // IndexController handles the main index and login-related routes.
@@ -63,8 +65,8 @@ func (a *IndexController) portalLogin(c *gin.Context) {
 				c.String(http.StatusNotFound, "404 Not Found")
 				return
 			}
-			// Set a short-lived cookie to verify the portal during login POST
-			c.SetCookie("reseller_portal", admin.WebPath, 300, "/", "", false, true)
+			c.Set("is_reseller", true)
+			c.Set("reseller_web_path", admin.WebPath)
 		}
 	}
 	if session.IsLogin(c) {
@@ -76,7 +78,15 @@ func (a *IndexController) portalLogin(c *gin.Context) {
 				var admin model.ResellerAdmin
 				if err := db.Where("id = ?", resellerId).First(&admin).Error; err == nil {
 					if strings.EqualFold(admin.WebPath, webPath) {
-						c.Redirect(http.StatusTemporaryRedirect, c.GetString("base_path")+admin.WebPath+"/panel/")
+						settingService := service.SettingService{}
+						mainBasePath, _ := settingService.GetBasePath()
+						if mainBasePath == "" {
+							mainBasePath = "/"
+						}
+						if !strings.HasSuffix(mainBasePath, "/") {
+							mainBasePath += "/"
+						}
+						c.Redirect(http.StatusTemporaryRedirect, mainBasePath+admin.WebPath+"/panel/")
 						return
 					}
 					// If they are logged in as a DIFFERENT reseller, we let them see the login page to switch
@@ -98,16 +108,26 @@ func (a *IndexController) portalLogin(c *gin.Context) {
 func (a *IndexController) index(c *gin.Context) {
 	if session.IsLogin(c) {
 		c.Header("Cache-Control", "no-store")
+		
 		if resellerId := session.GetLoginReseller(c); resellerId != "" {
 			db := database.GetDB()
 			if db != nil {
 				var admin model.ResellerAdmin
 				if err := db.Where("id = ?", resellerId).First(&admin).Error; err == nil {
-					c.Redirect(http.StatusTemporaryRedirect, c.GetString("base_path") + admin.WebPath + "/panel/")
+					settingService := service.SettingService{}
+					mainBasePath, _ := settingService.GetBasePath()
+					if mainBasePath == "" {
+						mainBasePath = "/"
+					}
+					if !strings.HasSuffix(mainBasePath, "/") {
+						mainBasePath += "/"
+					}
+					c.Redirect(http.StatusTemporaryRedirect, mainBasePath+admin.WebPath+"/panel/")
 					return
 				}
 			}
 		}
+		
 		c.Redirect(http.StatusTemporaryRedirect, c.GetString("base_path")+"panel/")
 		return
 	}
@@ -148,78 +168,98 @@ func (a *IndexController) login(c *gin.Context) {
 		return
 	}
 
+	// Check context: is the user logging in from a reseller portal or the master panel?
+	isResellerContext := c.GetBool("is_reseller") ||
+		c.GetHeader("X-Reseller-Base-Path") != "" ||
+		(form.IsResellerPortal != nil && *form.IsResellerPortal)
+
 	user, checkErr := a.userService.CheckUser(form.Username, form.Password, form.TwoFactorCode)
+
+	if isResellerContext {
+		// Context: Reseller Portal (must only authenticate reseller credentials)
 		if user != nil && checkErr == nil {
-			// Check if we are on the main base path
-			settingService := service.SettingService{}
-			mainBasePath, err := settingService.GetBasePath()
-			if err != nil || mainBasePath == "" {
-				mainBasePath = "/"
-			}
-			currentBasePath := c.GetString("base_path")
-			if currentBasePath != mainBasePath || strings.Contains(c.Request.Referer(), "/portal/") {
-				pureJsonMsg(c, http.StatusOK, false, "Master admin cannot login from a reseller portal")
-				return
-			}
+			// Master admin attempted to log in on a reseller portal
+			pureJsonMsg(c, http.StatusOK, false, "امکان ورود به پنل اصلی از طریق پورتال نمایندگان وجود ندارد")
+			return
 		}
 
+		var admin model.ResellerAdmin
+		db := database.GetDB()
+		if err := db.Where("LOWER(username) = LOWER(?)", form.Username).First(&admin).Error; err != nil || (!crypto.CheckPasswordHash(admin.Password, form.Password) && admin.Password != form.Password) {
+			reason := "invalid credentials"
+			if blockedUntil, blocked := defaultLoginLimiter.registerFailure(remoteIP, form.Username); blocked {
+				logger.Warningf("failed login: username=%q, IP=%q, reason=%q, blocked_until=%s", safeUser, remoteIP, reason, blockedUntil.Format(time.RFC3339))
+			} else {
+				logger.Warningf("failed login: username=%q, IP=%q, reason=%q", safeUser, remoteIP, reason)
+			}
+			a.tgbot.UserLoginNotify(tgbot.LoginAttempt{
+				Username: safeUser,
+				IP:       remoteIP,
+				Time:     timeStr,
+				Status:   tgbot.LoginFail,
+				Reason:   reason,
+			})
+			pureJsonMsg(c, http.StatusOK, false, I18nWeb(c, "pages.login.toasts.wrongUsernameOrPassword"))
+			return
+		}
+
+		// Check portal alignment if targeted to a specific reseller webPath
+		targetWebPath := c.GetString("reseller_web_path")
+		if form.PortalWebPath != "" {
+			targetWebPath = form.PortalWebPath
+		}
+		if targetWebPath != "" && !strings.EqualFold(targetWebPath, admin.WebPath) {
+			pureJsonMsg(c, http.StatusOK, false, I18nWeb(c, "pages.login.toasts.wrongUsernameOrPassword"))
+			return
+		}
+
+		if !admin.Enable {
+			pureJsonMsg(c, http.StatusOK, false, "حساب نماینده غیرفعال است")
+			return
+		}
+		if admin.ExpiryTime > 0 && time.Now().UnixMilli() > admin.ExpiryTime {
+			pureJsonMsg(c, http.StatusOK, false, "اعتبار حساب نماینده به پایان رسیده است")
+			return
+		}
+
+		defaultLoginLimiter.registerSuccess(remoteIP, form.Username)
+		logger.Infof("Reseller %s logged in successfully, Ip Address: %s\n", safeUser, remoteIP)
+
+		// Set session for reseller
+		settingService := service.SettingService{}
+		mainBasePath, _ := settingService.GetBasePath()
+		if mainBasePath == "" {
+			mainBasePath = "/"
+		}
+
+		resellerBasePath := "/"
+		trimmedMain := strings.Trim(mainBasePath, "/")
+		if trimmedMain != "" {
+			resellerBasePath += trimmedMain + "/"
+		}
+		resellerBasePath += admin.WebPath + "/"
+
+		c.Set("base_path", resellerBasePath)
+		if err := session.SetLoginReseller(c, admin.Id, admin.Username); err != nil {
+			logger.Warning("Unable to save reseller session:", err)
+			pureJsonMsg(c, http.StatusOK, false, "Failed to create session")
+			return
+		}
+
+		jsonMsgObj(c, I18nWeb(c, "pages.login.toasts.successLogin"), gin.H{"isReseller": true, "username": admin.Username, "remark": admin.Remark, "webPath": admin.WebPath}, nil)
+		return
+	}
+
+	// Context: Main Panel (Master Admin)
 	if user == nil {
-		// Try Reseller Admin
+		// Check if a reseller attempted to login from the main panel
 		var admin model.ResellerAdmin
 		db := database.GetDB()
 		if err := db.Where("LOWER(username) = LOWER(?)", form.Username).First(&admin).Error; err == nil {
-			// Verify password (plaintext fallback for migration if needed, but here we assume hashed)
-			if !crypto.CheckPasswordHash(admin.Password, form.Password) && admin.Password != form.Password {
-				pureJsonMsg(c, http.StatusOK, false, I18nWeb(c, "pages.login.toasts.wrongUsernameOrPassword"))
+			if crypto.CheckPasswordHash(admin.Password, form.Password) || admin.Password == form.Password {
+				pureJsonMsg(c, http.StatusOK, false, "ورود نمایندگان فقط از طریق آدرس اختصاصی پورتال نماینده امکان‌پذیر است")
 				return
 			}
-
-			// Ensure they logged in from their specific portal path or the direct reseller path
-			referer := strings.ToLower(c.Request.Referer())
-			basePath := c.GetString("base_path")
-			isDirectPath := strings.HasSuffix(strings.ToLower(basePath), "/"+strings.ToLower(admin.WebPath)+"/")
-			portalPath := "/portal/" + strings.ToLower(admin.WebPath)
-			
-			// Check cookie as a fallback for missing/unreliable referer
-			portalCookie, _ := c.Cookie("reseller_portal")
-			isValidPortal := strings.EqualFold(portalCookie, admin.WebPath) || strings.Contains(referer, portalPath)
-
-			if !isDirectPath && !isValidPortal {
-				pureJsonMsg(c, http.StatusOK, false, "Invalid login URL for this reseller")
-				return
-			}
-			
-			// Clear the portal cookie after use
-			c.SetCookie("reseller_portal", "", -1, "/", "", false, true)
-			
-			if !admin.Enable {
-				pureJsonMsg(c, http.StatusOK, false, "Reseller account disabled")
-				return
-			}
-			if admin.ExpiryTime > 0 && time.Now().UnixMilli() > admin.ExpiryTime {
-				pureJsonMsg(c, http.StatusOK, false, "Reseller account expired")
-				return
-			}
-			
-			defaultLoginLimiter.registerSuccess(remoteIP, form.Username)
-			logger.Infof("Reseller %s logged in successfully, Ip Address: %s\n", safeUser, remoteIP)
-			
-			// Set session for reseller
-			resellerBasePath := "/"
-			trimmedMain := strings.Trim(basePath, "/")
-			if trimmedMain != "" {
-				resellerBasePath += trimmedMain + "/"
-			}
-			resellerBasePath += admin.WebPath + "/"
-			c.Set("base_path", resellerBasePath)
-			if err := session.SetLoginReseller(c, admin.Id, admin.Username); err != nil {
-				logger.Warning("Unable to save reseller session:", err)
-				pureJsonMsg(c, http.StatusOK, false, "Failed to create session")
-				return
-			}
-
-			jsonMsgObj(c, I18nWeb(c, "pages.login.toasts.successLogin"), gin.H{"isReseller": true, "username": admin.Username, "remark": admin.Remark, "webPath": admin.WebPath}, nil)
-			return
 		}
 
 		reason := loginFailureReason(checkErr)
@@ -265,13 +305,32 @@ func loginFailureReason(err error) string {
 }
 
 func (a *IndexController) logout(c *gin.Context) {
-	user := session.GetLoginUser(c)
-	if user != nil {
-		logger.Infof("%s logged out successfully", user.Username)
+	settingService := service.SettingService{}
+	mainBasePath, _ := settingService.GetBasePath()
+	if mainBasePath == "" {
+		mainBasePath = "/"
 	}
-	if err := session.ClearSession(c); err != nil {
-		logger.Warning("Unable to clear session on logout:", err)
+
+	isReseller := c.GetBool("is_reseller") ||
+		c.GetHeader("X-Reseller-Base-Path") != "" ||
+		(c.GetString("base_path") != "" && c.GetString("base_path") != mainBasePath) ||
+		session.IsResellerLogin(c)
+
+	if isReseller {
+		logger.Infof("Reseller logged out successfully")
+		if err := session.ClearResellerSession(c); err != nil {
+			logger.Warning("Unable to clear reseller session on logout:", err)
+		}
+	} else {
+		user := session.GetLoginUser(c)
+		if user != nil {
+			logger.Infof("%s logged out successfully", user.Username)
+		}
+		if err := session.ClearAdminSession(c); err != nil {
+			logger.Warning("Unable to clear admin session on logout:", err)
+		}
 	}
+	c.SetCookie("reseller_portal", "", -1, "/", "", false, true)
 	c.Header("Cache-Control", "no-store")
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }

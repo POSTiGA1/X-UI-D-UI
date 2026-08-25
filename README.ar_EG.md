@@ -18,9 +18,9 @@
   <a href="https://goreportcard.com/report/github.com/mdaltoon10/D-UI/v3"><img src="https://goreportcard.com/badge/github.com/mdaltoon10/D-UI/v3" alt="Go Report Card"></a>
 </p>
 
-**Daltoon-UI** هي لوحة تحكم ويب متقدمة ومفتوحة المصدر لإدارة خوادم [Xray-core](https://github.com/XTLS/Xray-core). توفّر واجهة نظيفة ومتعددة اللغات لنشر وتكوين ومراقبة مجموعة واسعة من بروتوكولات الوكيل وVPN — من خادم VPS واحد إلى عمليات النشر متعددة العقد.
+**D-UI** هي لوحة تحكم ويب متقدمة ومفتوحة المصدر لإدارة خوادم [Xray-core](https://github.com/XTLS/Xray-core). توفّر واجهة نظيفة ومتعددة اللغات لنشر وتكوين ومراقبة مجموعة واسعة من بروتوكولات الوكيل وVPN — من خادم VPS واحد إلى عمليات النشر متعددة العقد.
 
-تم بناء Daltoon-UI كنسخة محسّنة (fork) من مشروع Daltoon-UI الأصلي، وتضيف دعمًا أوسع للبروتوكولات، واستقرارًا محسّنًا، ومحاسبة للترافيك لكل عميل، والعديد من ميزات تحسين تجربة الاستخدام.
+تم بناء D-UI كنسخة محسّنة (fork) من مشروع D-UI الأصلي، وتضيف دعمًا أوسع للبروتوكولات، واستقرارًا محسّنًا، ومحاسبة للترافيك لكل عميل، والعديد من ميزات تحسين تجربة الاستخدام.
 
 > [!IMPORTANT]
 > هذا المشروع مخصص للاستخدام الشخصي فقط. يرجى عدم استخدامه لأغراض غير قانونية أو في بيئة إنتاجية.
@@ -48,10 +48,10 @@
 bash <(curl -Ls https://raw.githubusercontent.com/mdaltoon10/D-UI/main/install.sh)
 ```
 
-لتثبيت إصدار محدد، أضِف وسمه (مثل `v1.4.1`):
+لتثبيت إصدار محدد، أضِف وسمه (مثل `v3.0.2`):
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/mdaltoon10/D-UI/main/install.sh) v1.4.1
+bash <(curl -Ls https://raw.githubusercontent.com/mdaltoon10/D-UI/main/install.sh) v3.0.2
 ```
 
 لتثبيت بنية **dev** المتجددة (أحدث إصدار أولي لكل التزام (commit) من `main`، وليس إصدارًا مستقرًا)، مرّر `dev-latest`:
@@ -82,7 +82,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/mdaltoon10/D-UI/main/install.s
 
 ## خيارات قاعدة البيانات
 
-يدعم Daltoon-UI خلفيتين (backends) يتم اختيارهما أثناء التثبيت:
+يدعم D-UI خلفيتين (backends) يتم اختيارهما أثناء التثبيت:
 
 - **SQLite** (افتراضي) — ملف واحد في `/etc/d-ui/d-ui.db`. بدون إعداد، مثالي لعمليات النشر الصغيرة والمتوسطة.
 - **PostgreSQL** — موصى به لأعداد العملاء الكبيرة أو الإعدادات متعددة العقد. يمكن للمثبِّت تثبيت PostgreSQL محليًا لك، أو قبول DSN لخادم موجود.

@@ -59,7 +59,11 @@ export type RowAction =
   | 'delete'
   | 'resetTraffic'
   | 'delAllClients'
-  | 'clone';
+  | 'clone'
+  | 'attachClients'
+  | 'attachExisting'
+  | 'detachClients'
+  | 'addToGroup';
 
 export type GeneralAction = 'import' | 'export' | 'subs' | 'resetInbounds';
 

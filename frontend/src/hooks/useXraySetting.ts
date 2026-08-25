@@ -84,14 +84,21 @@ type XrayConfigPayload = z.infer<typeof XrayConfigPayloadSchema>;
 export async function fetchXrayConfig(): Promise<XrayConfigPayload> {
   const msg = await HttpUtil.post('/panel/api/xray/', undefined, { silent: true });
   if (!msg?.success) throw new Error(msg?.msg || 'Failed to load xray config');
-  if (typeof msg.obj !== 'string') throw new Error('Malformed xray config response: expected string');
+  
   let parsed: unknown;
-  try {
-    parsed = JSON.parse(msg.obj);
-  } catch (e) {
-    const err = e as Error;
-    throw new Error(`Malformed xray config response: ${err.message}`, { cause: e });
+  if (typeof msg.obj === 'string') {
+    try {
+      parsed = JSON.parse(msg.obj);
+    } catch (e) {
+      const err = e as Error;
+      throw new Error(`Malformed xray config response: ${err.message}`, { cause: e });
+    }
+  } else if (typeof msg.obj === 'object' && msg.obj !== null) {
+    parsed = msg.obj; // Already parsed or returned as object directly
+  } else {
+    throw new Error(`Malformed xray config response: expected string or object, got ${typeof msg.obj}`);
   }
+
   const result = XrayConfigPayloadSchema.safeParse(parsed);
   if (!result.success) {
     console.warn('[zod] xray/ config payload failed validation', result.error.issues);

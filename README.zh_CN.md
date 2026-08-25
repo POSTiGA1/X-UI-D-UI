@@ -18,9 +18,9 @@
   <a href="https://goreportcard.com/report/github.com/mdaltoon10/D-UI/v3"><img src="https://goreportcard.com/badge/github.com/mdaltoon10/D-UI/v3" alt="Go Report Card"></a>
 </p>
 
-**Daltoon-UI** 是一个先进的开源 Web 控制面板，用于管理 [Xray-core](https://github.com/XTLS/Xray-core) 服务器。它提供简洁、多语言的界面，用于部署、配置和监控各种代理与 VPN 协议——从单台 VPS 到多节点部署。
+**D-UI** 是一个先进的开源 Web 控制面板，用于管理 [Xray-core](https://github.com/XTLS/Xray-core) 服务器。它提供简洁、多语言的界面，用于部署、配置和监控各种代理与 VPN 协议——从单台 VPS 到多节点部署。
 
-Daltoon-UI 作为原始 Daltoon-UI 项目的增强分支（fork），增加了更广泛的协议支持、更好的稳定性、按客户端的流量统计以及许多提升使用体验的功能。
+D-UI 作为原始 D-UI 项目的增强分支（fork），增加了更广泛的协议支持、更好的稳定性、按客户端的流量统计以及许多提升使用体验的功能。
 
 > [!IMPORTANT]
 > 本项目仅供个人使用。请勿将其用于非法目的，也请勿在生产环境中使用。
@@ -48,10 +48,10 @@ Daltoon-UI 作为原始 Daltoon-UI 项目的增强分支（fork），增加了�
 bash <(curl -Ls https://raw.githubusercontent.com/mdaltoon10/D-UI/main/install.sh)
 ```
 
-若要安装特定版本，请在命令后附加对应的标签（例如 `v1.4.1`）：
+若要安装特定版本，请在命令后附加对应的标签（例如 `v3.0.2`）：
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/mdaltoon10/D-UI/main/install.sh) v1.4.1
+bash <(curl -Ls https://raw.githubusercontent.com/mdaltoon10/D-UI/main/install.sh) v3.0.2
 ```
 
 若要安装滚动更新的 **dev** 版本（来自 `main` 的最新逐次提交预发布版本，而非稳定版本），请传入 `dev-latest`：
@@ -82,7 +82,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/mdaltoon10/D-UI/main/install.s
 
 ## 数据库选项
 
-Daltoon-UI 支持两种后端，可在安装时选择：
+D-UI 支持两种后端，可在安装时选择：
 
 - **SQLite**（默认）— 位于 `/etc/d-ui/d-ui.db` 的单个文件。无需配置，适合中小型部署。
 - **PostgreSQL** — 推荐用于大量客户端或多节点设置。安装程序可以为您在本地安装 PostgreSQL，或接受指向现有服务器的 DSN。

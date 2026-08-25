@@ -19,10 +19,10 @@ import {
   Typography,
   message,
 } from 'antd';
-import { DeleteOutlined, EyeOutlined, PlusOutlined, ReloadOutlined, RetweetOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EyeOutlined, PlusOutlined, ReloadOutlined, RetweetOutlined, CopyOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
-import { HttpUtil, RandomUtil, Wireguard } from '@/utils';
+import { ClipboardManager, HttpUtil, RandomUtil, Wireguard } from '@/utils';
 import { formatInboundLabel } from '@/lib/inbounds/label';
 import { normalizeClientIps, type ClientIpInfo } from '@/lib/clients/ip-log';
 import { DateTimePicker, SelectAllClearButtons } from '@/components/form';
@@ -30,6 +30,9 @@ import { TLS_FLOW_CONTROL } from '@/schemas/primitives';
 import type { ClientRecord, InboundOption, ExternalLink, ExternalLinkInput } from '@/hooks/useClients';
 import { useFail2banStatusQuery, getLimitIpNotice } from '@/api/queries/useFail2banStatusQuery';
 import { ClientFormSchema, ClientCreateFormSchema } from '@/schemas/client';
+import { useClientHwids } from '@/hooks/useClientHwids';
+import ClientHwidListModal from '@/components/clients/ClientHwidList';
+import { getSpeedTranslations } from '@/utils/speedI18n';
 
 const FLOW_OPTIONS = Object.values(TLS_FLOW_CONTROL);
 const VMESS_SECURITY_OPTIONS = ['auto', 'aes-128-gcm', 'chacha20-poly1305', 'none', 'zero'] as const;
@@ -40,6 +43,54 @@ const MULTI_CLIENT_PROTOCOLS = new Set([
 
 const CLIENT_FORM_MODAL_Z_INDEX = 1000;
 const CLIENT_IP_LOG_MODAL_Z_INDEX = CLIENT_FORM_MODAL_Z_INDEX + 1;
+
+interface PresetItem {
+  label?: string;
+  value: number;
+}
+
+const PresetChips: React.FC<{
+  items: PresetItem[];
+  selectedValue?: number;
+  onSelect: (val: number) => void;
+}> = ({ items, selectedValue, onSelect }) => {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4, alignItems: 'center' }}>
+      {items.map((it) => {
+        const isSelected = selectedValue !== undefined && selectedValue === it.value;
+        return (
+          <button
+            key={`${it.label}-${it.value}`}
+            type="button"
+            onClick={() => onSelect(it.value)}
+            style={{
+              cursor: 'pointer',
+              padding: '1px 6px',
+              fontSize: '11px',
+              lineHeight: '16px',
+              fontWeight: 500,
+              borderRadius: '4px',
+              border: isSelected
+                ? '1px solid var(--ant-color-primary, #1677ff)'
+                : '1px solid rgba(140, 155, 175, 0.25)',
+              backgroundColor: isSelected
+                ? 'rgba(22, 119, 255, 0.18)'
+                : 'rgba(140, 155, 175, 0.08)',
+              color: isSelected
+                ? 'var(--ant-color-primary, #1677ff)'
+                : 'var(--ant-color-text-secondary, #94a3b8)',
+              transition: 'all 0.15s ease',
+              outline: 'none',
+              userSelect: 'none',
+            }}
+          >
+            {it.label ?? it.value}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
 
 // One editable row in the Links tab. `key` is a stable client-side id for React.
 interface ExternalLinkRow {
@@ -103,11 +154,15 @@ interface FormState {
   security: string;
   reverseTag: string;
   totalGB: number;
+  uploadLimit: number;
+  downloadLimit: number;
   expiryDate: Dayjs | null;
   delayedStart: boolean;
   delayedDays: number;
   reset: number;
+  resetLimit: number;
   limitIp: number;
+  limitHwid: number;
   tgId: number;
   group: string;
   comment: string;
@@ -131,11 +186,15 @@ function emptyForm(): FormState {
     security: 'auto',
     reverseTag: '',
     totalGB: 0,
+    uploadLimit: 0,
+    downloadLimit: 0,
     expiryDate: null,
     delayedStart: false,
     delayedDays: 0,
     reset: 0,
+    resetLimit: 0,
     limitIp: 0,
+    limitHwid: 0,
     tgId: 0,
     group: '',
     comment: '',
@@ -176,13 +235,14 @@ export default function ClientFormModal({
   adminInbounds = [],
   attachedExternalLinks = [],
   attachedIds = [],
-  tgBotEnable = false,
+  tgBotEnable: _tgBotEnable = false,
   groups = [],
   save,
   resetTraffic,
   onOpenChange,
 }: ClientFormModalProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const speedDict = useMemo(() => getSpeedTranslations(i18n.language), [i18n.language]);
   const [messageApi, messageContextHolder] = message.useMessage();
   const isEdit = mode === 'edit';
 
@@ -222,18 +282,30 @@ export default function ClientFormModal({
   const [ipsLoading, setIpsLoading] = useState(false);
   const [ipsClearing, setIpsClearing] = useState(false);
   const [ipsModalOpen, setIpsModalOpen] = useState(false);
+  const [hwidsModalOpen, setHwidsModalOpen] = useState(false);
+
   const fail2ban = useFail2banStatusQuery();
   const limitIpDisabled = !fail2ban.usable;
   const limitIpNotice = getLimitIpNotice(fail2ban, t);
+
+  const {
+    clientHwids,
+    hwidsLoading,
+    hwidsClearing,
+    deletingHwidId,
+    loadHwids,
+    clearHwids,
+    deleteHwid,
+  } = useClientHwids(isEdit && client?.email ? client.email : undefined);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function addExternalLinkRow(kind: 'link' | 'subscription') {
+  function addExternalLinkRow(kind: 'link' | 'subscription', initialValue = '') {
     setForm((prev) => ({
       ...prev,
-      externalLinks: [...prev.externalLinks, { key: (externalLinkRowSeq += 1), kind, value: '' }],
+      externalLinks: [...prev.externalLinks, { key: (externalLinkRowSeq += 1), kind, value: initialValue }],
     }));
   }
 
@@ -254,6 +326,7 @@ export default function ClientFormModal({
   useEffect(() => {
     if (!open) return;
     setIpsModalOpen(false);
+    setHwidsModalOpen(false);
 
     if (isEdit && client) {
       const et = Number(client.expiryTime) || 0;
@@ -268,8 +341,12 @@ export default function ClientFormModal({
         security: client.security || 'auto',
         reverseTag: client.reverse?.tag || '',
         totalGB: bytesToGB(client.totalGB || 0),
+        uploadLimit: client.uploadLimit || client.uploadMbps || 0,
+        downloadLimit: client.downloadLimit || client.downloadMbps || 0,
         reset: Number(client.reset) || 0,
+        resetLimit: Number(client.resetLimit) || 0,
         limitIp: client.limitIp || 0,
+        limitHwid: Number(client.limitHwid) || 0,
         tgId: Number(client.tgId) || 0,
         group: client.group || '',
         comment: client.comment || '',
@@ -292,6 +369,7 @@ export default function ClientFormModal({
       }
       setForm(next);
       void loadIps();
+      void loadHwids();
     } else {
       const wgKeypair = Wireguard.generateKeypair();
       setForm({
@@ -467,7 +545,7 @@ export default function ClientFormModal({
   }
 
   async function onSubmit() {
-    const finalInboundIds = form.inboundIds;
+    const finalInboundIds = (isReseller && !isEdit) ? (effectiveInboundIds || []) : form.inboundIds;
     const schema = isEdit ? ClientFormSchema : (isReseller ? ClientFormSchema : ClientCreateFormSchema);
     const validated = schema.safeParse({
       email: form.email,
@@ -506,9 +584,15 @@ export default function ClientFormModal({
       flow: showFlow ? (form.flow || '') : '',
       security: showSecurity ? (form.security || 'auto') : 'auto',
       totalGB: gbToBytes(form.totalGB),
+      uploadLimit: Number(form.uploadLimit) || 0,
+      downloadLimit: Number(form.downloadLimit) || 0,
+      uploadMbps: Number(form.uploadLimit) || 0,
+      downloadMbps: Number(form.downloadLimit) || 0,
       expiryTime,
       reset: Number(form.reset) || 0,
+      resetLimit: Number(form.resetLimit) || 0,
       limitIp: Number(form.limitIp) || 0,
+      limitHwid: Number(form.limitHwid) || 0,
       tgId: Number(form.tgId) || 0,
       group: form.group,
       comment: form.comment,
@@ -612,7 +696,7 @@ export default function ClientFormModal({
                 children: (
                   <>
                     <Row gutter={16}>
-                      <Col xs={24} md={12}>
+                      <Col xs={24} sm={8}>
                         <Form.Item label={t('pages.clients.email')} required>
                           <Space.Compact style={{ display: 'flex' }}>
                             <Input
@@ -622,25 +706,48 @@ export default function ClientFormModal({
                               onChange={(e) => update('email', e.target.value)}
                             />
                             {!isEdit && (
-                              <Button aria-label={t('regenerate')} icon={<ReloadOutlined />} onClick={() => update('email', RandomUtil.randomLowerAndNum(12))} />
+                              <Button aria-label={t('regenerate')} icon={<ReloadOutlined />} onClick={() => update('email', RandomUtil.randomLowerAndNum(10))} />
                             )}
                           </Space.Compact>
                         </Form.Item>
                       </Col>
-                      <Col xs={24} md={6}>
+                      <Col xs={24} sm={8}>
                         <Form.Item label={t('pages.clients.totalGB')} tooltip={t('pages.clients.totalGBDesc')}>
-                          <InputNumber value={form.totalGB} min={0} step={1} style={{ width: '100%' }}
-                            onChange={(v) => update('totalGB', Number(v) || 0)} />
+                          <InputNumber
+                            value={form.totalGB}
+                            min={0}
+                            step={1}
+                            style={{ width: '100%' }}
+                            onChange={(v) => update('totalGB', Number(v) || 0)}
+                          />
+                          <PresetChips
+                            items={[
+                              { label: '0', value: 0 },
+                              { label: '10G', value: 10 },
+                              { label: '20G', value: 20 },
+                              { label: '30G', value: 30 },
+                              { label: '50G', value: 50 },
+                              { label: '80G', value: 80 },
+                              { label: '100G', value: 100 },
+                              { label: '200G', value: 200 },
+                            ]}
+                            selectedValue={form.totalGB}
+                            onSelect={(v) => update('totalGB', v)}
+                          />
                         </Form.Item>
                       </Col>
-                      <Col xs={24} md={6}>
+                      <Col xs={24} sm={8}>
                         <Form.Item label={t('pages.clients.limitIp')} tooltip={t('pages.clients.limitIpDesc')}>
                           <Tooltip title={limitIpNotice || undefined}>
                             <span style={{ display: 'flex', width: '100%' }}>
                               <Space.Compact style={{ display: 'flex', flex: 1 }}>
-                                <InputNumber value={form.limitIp} min={0} disabled={limitIpDisabled}
+                                <InputNumber
+                                  value={form.limitIp}
+                                  min={0}
+                                  disabled={limitIpDisabled}
                                   style={{ flex: 1, ...(limitIpDisabled ? { pointerEvents: 'none' } : null) }}
-                                  onChange={(v) => update('limitIp', Number(v) || 0)} />
+                                  onChange={(v) => update('limitIp', Number(v) || 0)}
+                                />
                                 {isEdit && (
                                   <Tooltip title={t('pages.clients.ipLog')}>
                                     <Button aria-label={t('pages.clients.ipLog')} icon={<EyeOutlined />} loading={ipsLoading} onClick={openIpsModal}>
@@ -651,16 +758,126 @@ export default function ClientFormModal({
                               </Space.Compact>
                             </span>
                           </Tooltip>
+                          {!limitIpDisabled && (
+                            <PresetChips
+                              items={[
+                                { label: '0 (∞)', value: 0 },
+                                { label: '1', value: 1 },
+                                { label: '2', value: 2 },
+                                { label: '3', value: 3 },
+                                { label: '4', value: 4 },
+                                { label: '5', value: 5 },
+                              ]}
+                              selectedValue={form.limitIp}
+                              onSelect={(v) => update('limitIp', v)}
+                            />
+                          )}
                         </Form.Item>
                       </Col>
                     </Row>
 
                     <Row gutter={16}>
-                      <Col xs={24} md={12}>
+                      <Col xs={24} sm={8}>
+                        <Form.Item label={speedDict.uploadLimit} tooltip={speedDict.uploadLimitDesc}>
+                          <InputNumber
+                            value={form.uploadLimit}
+                            min={0}
+                            step={1}
+                            style={{ width: '100%' }}
+                            onChange={(v) => update('uploadLimit', Number(v) || 0)}
+                          />
+                          <PresetChips
+                            items={[
+                              { label: '0', value: 0 },
+                              { label: '5M', value: 5 },
+                              { label: '10M', value: 10 },
+                              { label: '20M', value: 20 },
+                              { label: '50M', value: 50 },
+                              { label: '100M', value: 100 },
+                            ]}
+                            selectedValue={form.uploadLimit}
+                            onSelect={(v) => update('uploadLimit', v)}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={8}>
+                        <Form.Item label={speedDict.downloadLimit} tooltip={speedDict.downloadLimitDesc}>
+                          <InputNumber
+                            value={form.downloadLimit}
+                            min={0}
+                            step={1}
+                            style={{ width: '100%' }}
+                            onChange={(v) => update('downloadLimit', Number(v) || 0)}
+                          />
+                          <PresetChips
+                            items={[
+                              { label: '0', value: 0 },
+                              { label: '10M', value: 10 },
+                              { label: '20M', value: 20 },
+                              { label: '50M', value: 50 },
+                              { label: '100M', value: 100 },
+                              { label: '200M', value: 200 },
+                            ]}
+                            selectedValue={form.downloadLimit}
+                            onSelect={(v) => update('downloadLimit', v)}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={8}>
+                        <Form.Item label={t('pages.clients.limitHwid')} tooltip={t('pages.clients.limitHwidDesc')}>
+                          <span style={{ display: 'flex', width: '100%' }}>
+                            <Space.Compact style={{ display: 'flex', flex: 1 }}>
+                              <InputNumber
+                                value={form.limitHwid}
+                                min={0}
+                                style={{ flex: 1 }}
+                                onChange={(v) => update('limitHwid', Number(v) || 0)}
+                              />
+                              {isEdit && (
+                                <Tooltip title={t('pages.clients.hwidLog')}>
+                                  <Button aria-label={t('pages.clients.hwidLog')} icon={<EyeOutlined />} loading={hwidsLoading} onClick={() => setHwidsModalOpen(true)}>
+                                    {clientHwids.length > 0 ? clientHwids.length : ''}
+                                  </Button>
+                                </Tooltip>
+                              )}
+                            </Space.Compact>
+                          </span>
+                          <PresetChips
+                            items={[
+                              { label: '0 (∞)', value: 0 },
+                              { label: '1', value: 1 },
+                              { label: '2', value: 2 },
+                              { label: '3', value: 3 },
+                              { label: '5', value: 5 },
+                            ]}
+                            selectedValue={form.limitHwid}
+                            onSelect={(v) => update('limitHwid', v)}
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+
+                    <Row gutter={16}>
+                      <Col xs={24} sm={12}>
                         {form.delayedStart ? (
-                          <Form.Item label={t('pages.clients.expireDays')}>
-                            <InputNumber value={form.delayedDays} min={0} style={{ width: '100%' }}
-                              onChange={(v) => update('delayedDays', Number(v) || 0)} />
+                          <Form.Item label={t('pages.clients.expireDays')} tooltip={t('pages.clients.expireDays')}>
+                            <InputNumber
+                              value={form.delayedDays}
+                              min={0}
+                              style={{ width: '100%' }}
+                              onChange={(v) => update('delayedDays', Number(v) || 0)}
+                            />
+                            <PresetChips
+                              items={[
+                                { label: '30d', value: 30 },
+                                { label: '60d', value: 60 },
+                                { label: '90d', value: 90 },
+                                { label: '180d', value: 180 },
+                                { label: '365d', value: 365 },
+                              ]}
+                              selectedValue={form.delayedDays}
+                              onSelect={(v) => update('delayedDays', v)}
+                            />
                           </Form.Item>
                         ) : (
                           <Form.Item label={t('pages.clients.expiryTime')}>
@@ -668,39 +885,191 @@ export default function ClientFormModal({
                               value={form.expiryDate}
                               onChange={(d) => update('expiryDate', d || null)}
                             />
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4, alignItems: 'center' }}>
+                              {[
+                                { label: '+1M', months: 1 },
+                                { label: '+2M', months: 2 },
+                                { label: '+3M', months: 3 },
+                                { label: '+6M', months: 6 },
+                                { label: '+1Y', months: 12 },
+                              ].map((pm) => (
+                                <button
+                                  key={pm.months}
+                                  type="button"
+                                  onClick={() => {
+                                    const base = form.expiryDate && form.expiryDate.isAfter(dayjs()) ? form.expiryDate : dayjs();
+                                    update('expiryDate', base.add(pm.months, 'month'));
+                                  }}
+                                  style={{
+                                    cursor: 'pointer',
+                                    padding: '1px 6px',
+                                    fontSize: '11px',
+                                    lineHeight: '16px',
+                                    fontWeight: 500,
+                                    borderRadius: '4px',
+                                    border: '1px solid rgba(140, 155, 175, 0.25)',
+                                    backgroundColor: 'rgba(140, 155, 175, 0.08)',
+                                    color: 'var(--ant-color-text-secondary, #94a3b8)',
+                                    transition: 'all 0.15s ease',
+                                    outline: 'none',
+                                    userSelect: 'none',
+                                  }}
+                                >
+                                  {pm.label}
+                                </button>
+                              ))}
+                              {[30, 60, 90, 180, 365].map((days) => {
+                                const isSelected = Boolean(form.expiryDate && Math.abs(form.expiryDate.diff(dayjs(), 'day') - days) <= 1);
+                                return (
+                                  <button
+                                    key={days}
+                                    type="button"
+                                    onClick={() => update('expiryDate', dayjs().add(days, 'day'))}
+                                    style={{
+                                      cursor: 'pointer',
+                                      padding: '1px 6px',
+                                      fontSize: '11px',
+                                      lineHeight: '16px',
+                                      fontWeight: 500,
+                                      borderRadius: '4px',
+                                      border: isSelected
+                                        ? '1px solid var(--ant-color-primary, #1677ff)'
+                                        : '1px solid rgba(140, 155, 175, 0.25)',
+                                      backgroundColor: isSelected
+                                        ? 'rgba(22, 119, 255, 0.18)'
+                                        : 'rgba(140, 155, 175, 0.08)',
+                                      color: isSelected
+                                        ? 'var(--ant-color-primary, #1677ff)'
+                                        : 'var(--ant-color-text-secondary, #94a3b8)',
+                                      transition: 'all 0.15s ease',
+                                      outline: 'none',
+                                      userSelect: 'none',
+                                    }}
+                                  >
+                                    {days}d
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </Form.Item>
                         )}
                       </Col>
-                      <Col xs={12} md={6}>
+                      <Col xs={12} sm={6}>
                         <Form.Item label={t('pages.clients.delayedStart')}>
                           <Switch
                             checked={form.delayedStart}
                             onChange={(v) => {
                               update('delayedStart', v);
-                              if (v) update('expiryDate', null);
-                              else update('delayedDays', 0);
+                              if (v) {
+                                update('expiryDate', null);
+                              } else {
+                                update('delayedDays', 0);
+                              }
                             }}
                           />
                         </Form.Item>
                       </Col>
-                      <Col xs={12} md={6}>
-                        <Form.Item
-                          label={t('pages.clients.renewDays')}
-                          tooltip={t('pages.clients.renewDesc')}
-                        >
-                          <InputNumber value={form.reset} min={0} style={{ width: '100%' }}
-                            onChange={(v) => update('reset', Number(v) || 0)} />
+                      <Col xs={12} sm={6}>
+                        <Form.Item label={t('pages.clients.renewDays')} tooltip={t('pages.clients.renewDesc')}>
+                          <InputNumber
+                            value={form.delayedStart ? form.delayedDays : 0}
+                            min={0}
+                            style={{ width: '100%' }}
+                            onChange={(v) => {
+                              const val = Number(v) || 0;
+                              if (form.delayedStart) {
+                                update('delayedDays', val);
+                              }
+                            }}
+                          />
+                          <PresetChips
+                            items={[
+                              { label: '0', value: 0 },
+                              { label: '30d', value: 30 },
+                              { label: '60d', value: 60 },
+                              { label: '90d', value: 90 },
+                            ]}
+                            selectedValue={form.delayedStart ? form.delayedDays : 0}
+                            onSelect={(v) => {
+                              if (form.delayedStart) {
+                                update('delayedDays', v);
+                              }
+                            }}
+                          />
                         </Form.Item>
                       </Col>
                     </Row>
 
                     <Row gutter={16}>
-                      <Col xs={24} md={12}>
+                      <Col xs={24} sm={8}>
+                        <Form.Item label={t('pages.clients.resetDay')} tooltip={t('pages.clients.resetDayDesc')}>
+                          <InputNumber
+                            value={form.reset}
+                            min={0}
+                            style={{ width: '100%' }}
+                            onChange={(v) => update('reset', Number(v) || 0)}
+                          />
+                          <PresetChips
+                            items={[
+                              { label: '0', value: 0 },
+                              { label: '1d', value: 1 },
+                              { label: '7d', value: 7 },
+                              { label: '15d', value: 15 },
+                              { label: '30d', value: 30 },
+                            ]}
+                            selectedValue={form.reset}
+                            onSelect={(v) => update('reset', v)}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={8}>
+                        <Form.Item label={t('pages.clients.resetLimit')} tooltip={t('pages.clients.resetLimitDesc')}>
+                          <InputNumber
+                            value={form.resetLimit}
+                            min={0}
+                            style={{ width: '100%' }}
+                            onChange={(v) => update('resetLimit', Number(v) || 0)}
+                          />
+                          <PresetChips
+                            items={[
+                              { label: '0 (∞)', value: 0 },
+                              { label: '1×', value: 1 },
+                              { label: '3×', value: 3 },
+                              { label: '6×', value: 6 },
+                              { label: '12×', value: 12 },
+                            ]}
+                            selectedValue={form.resetLimit}
+                            onSelect={(v) => update('resetLimit', v)}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={8}>
+                        <Form.Item label={t('pages.clients.resetTraffic')} tooltip={t('pages.clients.trafficResetCycleDesc')}>
+                          <Select
+                            value={form.reset}
+                            onChange={(v) => update('reset', Number(v) || 0)}
+                            options={[
+                              { value: 0, label: t('pages.clients.trafficResetNever') },
+                              { value: 1, label: t('pages.clients.trafficResetDaily') },
+                              { value: 7, label: t('pages.clients.trafficResetWeekly') },
+                              { value: 15, label: t('pages.clients.trafficResetBiweekly') },
+                              { value: 30, label: t('pages.clients.trafficResetMonthly') },
+                              ...(form.reset !== 0 && form.reset !== 1 && form.reset !== 7 && form.reset !== 15 && form.reset !== 30
+                                ? [{ value: form.reset, label: `${form.reset} ${t('pages.clients.days')}` }]
+                                : []),
+                            ]}
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+
+                    <Row gutter={16}>
+                      <Col xs={24} sm={12}>
                         <Form.Item label={t('pages.clients.comment')}>
                           <Input value={form.comment} onChange={(e) => update('comment', e.target.value)} />
                         </Form.Item>
                       </Col>
-                      <Col xs={24} md={12}>
+                      <Col xs={24} sm={12}>
                         <Form.Item label={t('pages.clients.group')} tooltip={t('pages.clients.groupDesc')}>
                           <AutoComplete
                             value={form.group}
@@ -713,27 +1082,31 @@ export default function ClientFormModal({
                       </Col>
                     </Row>
 
-                    {(tgBotEnable || showReverseTag) && (
-                      <Row gutter={16}>
-                        {tgBotEnable && (
-                          <Col xs={24} md={12}>
-                            <Form.Item label={t('pages.clients.telegramId')}>
-                              <InputNumber value={form.tgId} min={0} controls={false}
-                                placeholder={t('pages.clients.telegramIdPlaceholder')} style={{ width: '100%' }}
-                                onChange={(v) => update('tgId', Number(v) || 0)} />
-                            </Form.Item>
-                          </Col>
-                        )}
-                        {showReverseTag && (
-                          <Col xs={24} md={12}>
-                            <Form.Item label={t('pages.clients.reverseTag')}>
-                              <Input value={form.reverseTag} placeholder={t('pages.clients.reverseTagPlaceholder')}
-                                onChange={(e) => update('reverseTag', e.target.value)} />
-                            </Form.Item>
-                          </Col>
-                        )}
-                      </Row>
-                    )}
+                    <Row gutter={16}>
+                      <Col xs={24} sm={12}>
+                        <Form.Item label={t('pages.clients.telegramId')}>
+                          <InputNumber
+                            value={form.tgId}
+                            min={0}
+                            controls={false}
+                            placeholder="0"
+                            style={{ width: '100%' }}
+                            onChange={(v) => update('tgId', Number(v) || 0)}
+                          />
+                        </Form.Item>
+                      </Col>
+                      {showReverseTag && (
+                        <Col xs={24} sm={12}>
+                          <Form.Item label={t('pages.clients.reverseTag')}>
+                            <Input
+                              value={form.reverseTag}
+                              placeholder={t('pages.clients.reverseTagPlaceholder')}
+                              onChange={(e) => update('reverseTag', e.target.value)}
+                            />
+                          </Form.Item>
+                        </Col>
+                      )}
+                    </Row>
 
                     {!isReseller && (
                       <Form.Item label={t('pages.clients.attachedInbounds')} required={!isEdit}>
@@ -752,7 +1125,8 @@ export default function ClientFormModal({
                           placement="topLeft"
                           listHeight={220}
                           showSearch={{
-                            filterOption: (input, option) => ((option?.label as string) || '').toLowerCase().includes(input.toLowerCase()),
+                            filterOption: (input, option) =>
+                              ((option?.label as string) || '').toLowerCase().includes(input.toLowerCase()),
                           }}
                         />
                       </Form.Item>
@@ -760,7 +1134,7 @@ export default function ClientFormModal({
 
                     <Form.Item>
                       <Switch aria-label={t('enable')} checked={form.enable} onChange={(v) => update('enable', v)} />
-                      <span style={{ marginLeft: 8 }}>{t('enable')}</span>
+                      <span style={{ marginInlineStart: 8 }}>{t('enable')}</span>
                     </Form.Item>
                   </>
                 ),
@@ -770,6 +1144,30 @@ export default function ClientFormModal({
                 label: t('pages.clients.tabCredentials'),
                 children: (
                   <>
+                    <Row gutter={16}>
+                      <Col xs={24} sm={12}>
+                        <Form.Item label={speedDict.uploadLimit} tooltip={speedDict.uploadLimitDesc}>
+                          <InputNumber
+                            value={form.uploadLimit}
+                            min={0}
+                            step={1}
+                            style={{ width: '100%' }}
+                            onChange={(v) => update('uploadLimit', Number(v) || 0)}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col xs={24} sm={12}>
+                        <Form.Item label={speedDict.downloadLimit} tooltip={speedDict.downloadLimitDesc}>
+                          <InputNumber
+                            value={form.downloadLimit}
+                            min={0}
+                            step={1}
+                            style={{ width: '100%' }}
+                            onChange={(v) => update('downloadLimit', Number(v) || 0)}
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
                     <Form.Item label={t('pages.clients.uuid')}>
                       <Space.Compact style={{ display: 'flex' }}>
                         <Input value={form.uuid} style={{ flex: 1 }} onChange={(e) => update('uuid', e.target.value)} />
@@ -865,23 +1263,47 @@ export default function ClientFormModal({
                 children: (
                   <>
                     <Typography.Paragraph type="secondary" style={{ marginTop: 4 }}>
-                      {t('pages.clients.linksHint')}
+                      {t('pages.clients.externalLinksDesc') || t('pages.clients.linksHint')}
                     </Typography.Paragraph>
 
-                    <Button type="primary" icon={<PlusOutlined />} onClick={() => addExternalLinkRow('link')}>
-                      {t('pages.clients.addExternalLink')}
-                    </Button>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                      <Button type="primary" icon={<PlusOutlined />} onClick={() => addExternalLinkRow('link')}>
+                        {t('pages.clients.addExternalLink')}
+                      </Button>
+                      <Button type="dashed" icon={<PlusOutlined />} onClick={() => addExternalLinkRow('link', 'vless://uuid@domain:443?type=tcp&security=reality#External-VLESS')}>
+                        + VLESS
+                      </Button>
+                      <Button type="dashed" icon={<PlusOutlined />} onClick={() => addExternalLinkRow('link', 'trojan://password@domain:443?security=tls#External-Trojan')}>
+                        + Trojan
+                      </Button>
+                      <Button type="dashed" icon={<PlusOutlined />} onClick={() => addExternalLinkRow('subscription', 'https://')}>
+                        {t('pages.clients.addExternalSub')}
+                      </Button>
+                    </div>
+
                     <div style={{ marginTop: 12, marginBottom: 24 }}>
+                      <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
+                        {t('pages.clients.externalLinks')} ({linkRows.length})
+                      </Typography.Text>
                       {linkRows.length === 0 ? (
                         <Typography.Text type="secondary">{t('pages.clients.noExternalLinks')}</Typography.Text>
                       ) : linkRows.map((row) => (
-                        <div key={row.key} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                        <div key={row.key} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
                           <Input
                             value={row.value}
                             aria-label="vless:// · vmess:// · trojan:// · ss:// · hysteria2:// · wireguard://"
                             onChange={(e) => updateExternalLinkRow(row.key, e.target.value)}
                             placeholder="vless:// · vmess:// · trojan:// · ss:// · hysteria2:// · wireguard://"
                           />
+                          {row.value && (
+                            <Tooltip title={t('copy')}>
+                              <Button
+                                aria-label={t('copy')}
+                                icon={<CopyOutlined />}
+                                onClick={() => ClipboardManager.copyText(row.value, t('copied'))}
+                              />
+                            </Tooltip>
+                          )}
                           <Tooltip title={t('delete')}>
                             <Button aria-label={t('delete')} danger icon={<DeleteOutlined />} onClick={() => removeExternalLinkRow(row.key)} />
                           </Tooltip>
@@ -889,20 +1311,29 @@ export default function ClientFormModal({
                       ))}
                     </div>
 
-                    <Button type="primary" icon={<PlusOutlined />} onClick={() => addExternalLinkRow('subscription')}>
-                      {t('pages.clients.addExternalSubscription')}
-                    </Button>
-                    <div style={{ marginTop: 12 }}>
+                    <div style={{ marginTop: 16 }}>
+                      <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
+                        {t('pages.clients.externalSubscriptions') || 'External Subscriptions'} ({subscriptionRows.length})
+                      </Typography.Text>
                       {subscriptionRows.length === 0 ? (
                         <Typography.Text type="secondary">{t('pages.clients.noExternalSubscriptions')}</Typography.Text>
                       ) : subscriptionRows.map((row) => (
-                        <div key={row.key} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                        <div key={row.key} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
                           <Input
                             value={row.value}
                             aria-label="https://provider.example/sub/…"
                             onChange={(e) => updateExternalLinkRow(row.key, e.target.value)}
                             placeholder="https://provider.example/sub/…"
                           />
+                          {row.value && (
+                            <Tooltip title={t('copy')}>
+                              <Button
+                                aria-label={t('copy')}
+                                icon={<CopyOutlined />}
+                                onClick={() => ClipboardManager.copyText(row.value, t('copied'))}
+                              />
+                            </Tooltip>
+                          )}
                           <Tooltip title={t('delete')}>
                             <Button aria-label={t('delete')} danger icon={<DeleteOutlined />} onClick={() => removeExternalLinkRow(row.key)} />
                           </Tooltip>
@@ -961,6 +1392,19 @@ export default function ClientFormModal({
           <Tag>{t('tgbot.noIpRecord')}</Tag>
         )}
       </Modal>
+
+      <ClientHwidListModal
+        open={hwidsModalOpen}
+        clientEmail={isEdit && client?.email ? client.email : ''}
+        hwids={clientHwids}
+        loading={hwidsLoading}
+        clearing={hwidsClearing}
+        deletingHwidId={deletingHwidId}
+        onRefresh={loadHwids}
+        onClearAll={clearHwids}
+        onDeleteSingle={deleteHwid}
+        onClose={() => setHwidsModalOpen(false)}
+      />
     </>
   );
 }

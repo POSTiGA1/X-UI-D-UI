@@ -45,7 +45,7 @@ interface MetricDef {
 }
 
 const METRICS: MetricDef[] = [
-  { key: 'cpu', tab: 'CPU', tabKey: 'pages.index.cpu', title: 'pages.index.historyTitleCpu', icon: <DashboardOutlined />, valueMax: 100, unit: '%', stroke: '' },
+  { key: 'cpu', tab: 'CPU', tabKey: 'pages.index.cpu', title: 'pages.index.historyTitleCpu', icon: <DashboardOutlined />, valueMax: 100, unit: '%', stroke: '#10b981' },
   { key: 'mem', tab: 'RAM', tabKey: 'pages.index.memory', title: 'pages.index.historyTitleMem', icon: <DatabaseOutlined />, valueMax: 100, unit: '%', stroke: '#7c4dff', key2: 'swap', stroke2: '#ffa940', name1: 'pages.index.memory', name2: 'pages.index.swap' },
   { key: 'netUp', tab: 'Bandwidth', tabKey: 'pages.index.historyTabBandwidth', title: 'pages.index.historyTitleNetwork', icon: <GlobalOutlined />, valueMax: null, unit: 'B/s', stroke: '#1890ff', key2: 'netDown', stroke2: '#13c2c2', name1: 'Up', name2: 'Down' },
   { key: 'pktUp', tab: 'Packets', tabKey: 'pages.index.historyTabPackets', title: 'pages.index.historyTitlePackets', icon: <DeploymentUnitOutlined />, valueMax: null, unit: 'pkt/s', stroke: '#2f54eb', key2: 'pktDown', stroke2: '#36cfc9', name1: 'Up', name2: 'Down' },

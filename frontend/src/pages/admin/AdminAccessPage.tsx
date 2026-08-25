@@ -47,6 +47,8 @@ import {
 import { useTranslation } from 'react-i18next';
 import { HttpUtil, SizeFormatter, IntlUtil } from '@/utils';
 import { useTheme } from '@/hooks/useTheme';
+import { useDatepicker } from '@/hooks/useDatepicker';
+import { getAdminTranslations } from '@/utils/adminI18n';
 import AppSidebar from '@/layouts/AppSidebar';
 import '@/pages/clients/ClientsPage.css'; // Inherit all glorious dark theme styling!
 import type { BulkAttachResult, BulkDetachResult } from '@/schemas/client';
@@ -68,6 +70,7 @@ interface ResellerAdmin {
   enable?: boolean;
   clientsCount?: number;
   trafficUsedBytes?: number;
+  clientLimit?: number;
 }
 
 interface InboundOption {
@@ -78,9 +81,11 @@ interface InboundOption {
 }
 
 export default function AdminAccessPage() {
-  const { i18n } = useTranslation();
-  const { isDark, isUltra, antdThemeConfig } = useTheme();
+  const { i18n, t } = useTranslation();
   const isFa = i18n.language?.startsWith('fa');
+  const { isDark, isUltra, antdThemeConfig } = useTheme();
+  const { datepicker } = useDatepicker();
+  const dict = useMemo(() => getAdminTranslations(i18n.language), [i18n.language]);
 
   const pageClass = useMemo(() => {
     const classes = ['clients-page'];
@@ -88,68 +93,6 @@ export default function AdminAccessPage() {
     if (isUltra) classes.push('is-ultra');
     return classes.join(' ');
   }, [isDark, isUltra]);
-
-  // Multi-language text maps
-  const dict = {
-    title: isFa ? 'مدیریت همکاران و ادمین‌ها' : 'Resellers & Admins Management',
-    addBtn: isFa ? 'ساخت ادمین همکار' : 'Create Reseller Admin',
-    searchPlaceholder: isFa ? 'جستجوی نام، نام کاربری یا مسیر وب...' : 'Search remark, username or web path...',
-    colRemark: isFa ? 'نام مستعار / توضیحات' : 'Remark / Display Name',
-    colUsername: isFa ? 'نام کاربری' : 'Username',
-    colQuota: isFa ? 'سقف حجم' : 'Quota',
-    colExpiry: isFa ? 'زمان انقضا' : 'Expiry',
-    colWebPath: isFa ? 'آدرس پورتال' : 'Portal URL',
-    colInbounds: isFa ? 'اینباندهای مجاز' : 'Allowed Inbounds',
-    colActions: isFa ? 'عملیات' : 'Actions',
-    modalAddTitle: isFa ? 'افزودن ادمین همکار' : 'Create Reseller Admin',
-    modalEditTitle: isFa ? 'ویرایش ادمین همکار' : 'Edit Reseller Admin',
-    labelRemark: isFa ? 'نام مستعار (توضیحات)' : 'Remark (Display Name)',
-    labelPassword: isFa ? 'رمز عبور' : 'Password',
-    labelQuota: isFa ? 'سقف ترافیک کل (گیگابایت)' : 'Total Traffic Quota (GB)',
-    labelQuotaHint: isFa ? 'مجموع ترافیک مصرفی تمام کلاینت‌های این ادمین (۰ برای نامحدود)' : "Sum of traffic used by this admin's clients (0 for unlimited)",
-    labelDays: isFa ? 'مدت اعتبار اکانت (روز)' : 'Validity Period (Days)',
-    labelDaysHint: isFa ? 'زمان اعتبار کل اکانت ادمین از زمان ساخت (۰ برای نامحدود)' : 'Admin account validity time from creation (0 for unlimited)',
-    labelWebPath: isFa ? 'مسیر وب اختصاصی' : 'Custom Web Path',
-    labelWebPathHint: isFa ? 'لینک پورتال اختصاصی برای ورود مستقیم' : 'Unique URL path for direct login (e.g., /portal/path)',
-    labelInbounds: isFa ? 'اینباندهای مجاز' : 'Assigned Inbounds',
-    labelInboundsHint: isFa ? 'کلاینت‌های این ادمین فقط در این اینباندها قابل تعریف خواهند بود' : 'This reseller will only be allowed to add clients inside these inbounds',
-    btnGenerate: isFa ? 'تصادفی' : 'Randomize',
-    btnCancel: isFa ? 'لغو' : 'Cancel',
-    btnSubmit: isFa ? 'ثبت' : 'Submit',
-    toastCopied: isFa ? 'لینک پورتال با موفقیت کپی شد!' : 'Portal link copied successfully!',
-    confirmDelete: isFa ? 'آیا از حذف این ادمین همکار اطمینان دارید؟ تمامی دسترسی‌های پورتال او لغو خواهند شد.' : 'Are you sure you want to delete this reseller? Their access link will be revoked.',
-    statusExpired: isFa ? 'منقضی شده' : 'Expired',
-    statusActive: isFa ? 'فعال' : 'Active',
-    statusDisabled: isFa ? 'غیرفعال' : 'Disabled',
-    unlimited: isFa ? 'نامحدود' : 'Unlimited',
-    daysSuffix: isFa ? ' روز باقیمانده' : ' days left',
-    allInbounds: isFa ? 'همه اینباندها' : 'All Inbounds',
-    noInbounds: isFa ? 'بدون اینباند' : 'No inbounds allowed',
-    searchTip: isFa ? 'جستجو' : 'Search',
-    reloadTip: isFa ? 'بروزرسانی لیست' : 'Reload',
-    statsTotal: isFa ? 'کل ادمین‌ها' : 'Total Resellers',
-    statsActive: isFa ? 'فعال' : 'Active',
-    statsExpired: isFa ? 'منقضی شده' : 'Expired',
-    statsDisabled: isFa ? 'غیرفعال' : 'Disabled',
-    statsAllocated: isFa ? 'حجم کل همکاران' : 'Total Quota Pool',
-    bulkDelete: isFa ? 'حذف گروهی' : 'Bulk Delete',
-    bulkDisable: isFa ? 'غیرفعال‌سازی گروهی' : 'Bulk Disable',
-    bulkEnable: isFa ? 'فعال‌سازی گروهی' : 'Bulk Enable',
-    selectedCount: isFa ? 'انتخاب شده: {count} مورد' : '{count} items selected',
-    selectAll: isFa ? 'انتخاب همه' : 'Select all',
-    sortOldest: isFa ? 'قدیمی‌ترین' : 'Oldest first',
-    sortNewest: isFa ? 'جدید‌ترین' : 'Newest first',
-    sortQuota: isFa ? 'بیشترین سقف حجم' : 'Highest Quota',
-    sortExpiry: isFa ? 'کمترین زمان باقیمانده' : 'Expiring soonest',
-    detailsTitle: isFa ? 'جزئیات ادمین همکار' : 'Reseller Admin Details',
-    detailsCreated: isFa ? 'تاریخ ساخت:' : 'Created At:',
-    detailsRemaining: isFa ? 'زمان باقیمانده:' : 'Time Remaining:',
-    detailsAllowedIb: isFa ? 'اینباندهای مجاز:' : 'Allowed Inbounds:',
-    detailsLink: isFa ? 'لینک اختصاصی پورتال:' : 'Exclusive Portal Link:',
-    detailsCopied: isFa ? 'کپی شد' : 'Copied',
-    totalClients: isFa ? 'تعداد کلاینت‌ها' : 'Total Clients',
-    trafficUsed: isFa ? 'حجم مصرف شده کلاینت‌ها' : 'Clients Traffic Consumed',
-  };
 
   const [admins, setAdmins] = useState<ResellerAdmin[]>([]);
   const [inboundOptions, setInboundOptions] = useState<InboundOption[]>([]);
@@ -214,21 +157,24 @@ export default function AdminAccessPage() {
       webPath: Math.random().toString(36).substring(2, 10),
       inbounds: inboundOptions.map(ib => ib.id),
       enable: true,
+      clientLimit: 0,
     });
     setIsModalOpen(true);
   };
 
   const handleOpenEditModal = (admin: ResellerAdmin) => {
     setEditingAdmin(admin);
+    const remainingDays = admin.expiryTime > 0 ? Math.max(0, Math.ceil((admin.expiryTime - Date.now()) / 86400000)) : 0;
     form.setFieldsValue({
       remark: admin.remark,
       username: admin.username,
       password: admin.password,
       volumeGB: admin.volumeGB,
-      days: admin.days,
+      days: admin.expiryTime > 0 ? remainingDays : (admin.days || 0),
       webPath: admin.webPath,
       inbounds: admin.inbounds,
       enable: admin.enable !== false,
+      clientLimit: admin.clientLimit || 0,
     });
     setIsModalOpen(true);
   };
@@ -239,23 +185,34 @@ export default function AdminAccessPage() {
     });
   };
 
-  const handleDeleteAdmin = async (id: string) => {
-    const res = await HttpUtil.post('/panel/api/admins/delete', { id }, { headers: { 'Content-Type': 'application/json' } });
-    if (res.success) {
-      fetchAdmins();
-      setSelectedRowKeys(prev => prev.filter(k => k !== id));
+  const handleDeleteAdmin = async (target: ResellerAdmin | string) => {
+    const id = typeof target === 'string' ? target : (target.id || target.username);
+    if (!id) return;
+    try {
+      const res = await HttpUtil.post('/panel/api/admins/delete', { id }, { headers: { 'Content-Type': 'application/json' } });
+      if (res.success) {
+        messageApi.success(dict.deleteResellerSuccess || (isFa ? 'ادمین همکار با موفقیت حذف شد' : 'Reseller deleted successfully'));
+        setSelectedRowKeys(prev => prev.filter(k => k !== id));
+        fetchAdmins();
+      } else {
+        messageApi.error(res.msg || (isFa ? 'خطا در حذف همکار' : 'Failed to delete reseller'));
+      }
+    } catch (err: unknown) {
+      messageApi.error((err as { message?: string })?.message || (isFa ? 'خطا در حذف همکار' : 'Failed to delete reseller'));
     }
   };
 
 
   const [resettingTrafficId, setResettingTrafficId] = useState<string | null>(null);
 
-  const handleResetTraffic = async (id: string) => {
+  const handleResetTraffic = async (target: ResellerAdmin | string) => {
+    const id = typeof target === 'string' ? target : (target.id || target.username);
+    if (!id) return;
     setResettingTrafficId(id);
     try {
       const res = await HttpUtil.post('/panel/api/admins/resetTraffic', { id }, { headers: { 'Content-Type': 'application/json' } });
       if (res.success) {
-        messageApi.success(isFa ? 'ترافیک با موفقیت ریست شد' : 'Traffic reset successfully');
+        messageApi.success(dict.trafficResetSuccess);
         fetchAdmins();
         setIsModalOpen(false);
       }
@@ -277,18 +234,18 @@ export default function AdminAccessPage() {
         if (res.success) {
           setIsModalOpen(false);
           fetchAdmins();
-          messageApi.success(isFa ? 'اطلاعات ادمین بروزرسانی شد' : 'Admin updated successfully');
+          messageApi.success(t('success'));
         } else {
-          messageApi.error(res.msg || (isFa ? 'خطا در بروزرسانی ادمین' : 'Failed to update admin'));
+          messageApi.error(res.msg || t('somethingWentWrong'));
         }
       } else {
         const res = await HttpUtil.post('/panel/api/admins/add', values, { headers: { 'Content-Type': 'application/json' } });
         if (res.success) {
           setIsModalOpen(false);
           fetchAdmins();
-          messageApi.success(isFa ? 'ادمین با موفقیت ساخته شد' : 'Admin created successfully');
+          messageApi.success(t('success'));
         } else {
-          messageApi.error(res.msg || (isFa ? 'خطا در ساخت ادمین' : 'Failed to create admin'));
+          messageApi.error(res.msg || t('somethingWentWrong'));
         }
       }
     } catch (err) {
@@ -303,7 +260,7 @@ export default function AdminAccessPage() {
       enable: next
     }, { headers: { 'Content-Type': 'application/json' } });
     if (res.success) {
-      messageApi.success(isFa ? 'وضعیت همکار با موفقیت ویرایش شد' : 'Reseller status updated successfully');
+      messageApi.success(t('success'));
       fetchAdmins();
     }
     setTogglingId(null);
@@ -363,18 +320,16 @@ export default function AdminAccessPage() {
       }
     }
     setSelectedRowKeys([]);
-    messageApi.success(isFa ? 'تغییرات با موفقیت بر روی همکاران اعمال شد' : 'Bulk reseller status updated successfully');
+    messageApi.success(t('success'));
     fetchAdmins();
   };
 
   const onBulkDelete = () => {
     modal.confirm({
-      title: isFa ? 'حذف گروهی همکاران' : 'Bulk Delete Resellers',
+      title: dict.bulkDelete,
       icon: <ExclamationCircleFilled style={{ color: '#faad14' }} />,
-      content: isFa 
-        ? `آیا از حذف ${selectedRowKeys.length} همکار انتخاب شده اطمینان دارید؟ تمامی دسترسی‌های پورتال آن‌ها لغو خواهند شد. این عمل غیرقابل بازگشت است.` 
-        : 'Are you sure you want to delete the selected resellers? All their access links will be revoked. This cannot be undone.',
-      okText: isFa ? 'حذف' : 'Delete',
+      content: dict.confirmDelete,
+      okText: dict.btnDelete || (isFa ? 'حذف' : 'Delete'),
       okType: 'danger',
       cancelText: dict.btnCancel,
       onOk: async () => {
@@ -383,7 +338,7 @@ export default function AdminAccessPage() {
           await HttpUtil.post('/panel/api/admins/delete', { id }, { headers: { 'Content-Type': 'application/json' } });
         }
         setSelectedRowKeys([]);
-        messageApi.success(isFa ? 'همکاران با موفقیت حذف شدند' : 'Selected resellers deleted successfully');
+        messageApi.success(dict.deleteSelectedSuccess || (isFa ? 'موارد با موفقیت حذف شدند' : 'Selected items deleted successfully'));
         fetchAdmins();
       }
     });
@@ -480,7 +435,7 @@ export default function AdminAccessPage() {
     const diff = admin.expiryTime - Date.now();
     if (diff <= 0) return dict.statusExpired;
     const daysLeft = Math.ceil(diff / 86400000);
-    return `${daysLeft}${dict.daysSuffix}`;
+    return `${daysLeft} ${dict.daysSuffix}`;
   };
 
   return (
@@ -586,7 +541,7 @@ export default function AdminAccessPage() {
                 }}
               >
                 <Button icon={<MoreOutlined />}>
-                  {isFa ? 'عملیات گروهی' : 'Bulk Actions'}
+                  {dict.bulkActions}
                 </Button>
               </Dropdown>
             )}
@@ -635,7 +590,7 @@ export default function AdminAccessPage() {
             {filteredAdmins.length === 0 && (
               <div className="card-empty" style={{ padding: '40px 0', textAlign: 'center' }}>
                 <TeamOutlined style={{ fontSize: 32, opacity: 0.5, marginBottom: 8 }} />
-                <div style={{ opacity: 0.7 }}>{isFa ? 'هیچ همکاری یافت نشد' : 'No resellers found'}</div>
+                <div style={{ opacity: 0.7 }}>{dict.noResellersFound}</div>
               </div>
             )}
 
@@ -701,27 +656,27 @@ export default function AdminAccessPage() {
                           items: [
                             {
                               key: 'info',
-                              label: <><InfoCircleOutlined /> {isFa ? 'جزئیات کامل' : 'Full Details'}</>,
+                              label: <><InfoCircleOutlined /> {dict.fullDetails}</>,
                               onClick: () => handleShowInfo(row),
                             },
                             {
                               key: 'reset',
-                              label: <><RetweetOutlined /> {isFa ? 'ریست ترافیک' : 'Reset Traffic'}</>,
+                              label: <><RetweetOutlined /> {dict.resetTraffic}</>,
                               onClick: () => {
                                 modal.confirm({
-                                  title: isFa ? `ریست ترافیک ${row.remark || row.username}؟` : `Reset traffic for ${row.remark || row.username}?`,
+                                  title: `${dict.resetTraffic}: ${row.remark || row.username}`,
                                   icon: <ExclamationCircleFilled style={{ color: '#faad14' }} />,
-                                  content: isFa ? 'آیا از ریست کردن ترافیک مصرفی این ادمین همکار اطمینان دارید؟ (ترافیک کلاینت‌های زیرمجموعه تغییر نخواهد کرد)' : 'Are you sure you want to reset traffic for this reseller? (Clients traffic will not be changed)',
-                                  okText: isFa ? 'ریست' : 'Reset',
+                                  content: dict.resetTrafficConfirm,
+                                  okText: dict.btnReset || (isFa ? 'بازنشانی' : 'Reset'),
                                   okType: 'danger',
                                   cancelText: dict.btnCancel,
-                                  onOk: () => handleResetTraffic(row.id)
+                                  onOk: () => handleResetTraffic(row)
                                 });
                               }
                             },
                             {
                               key: 'attach',
-                              label: <><LinkOutlined /> {isFa ? 'الصاق کلاینت‌ها به اینباند' : 'Attach Clients to Inbounds'}</>,
+                              label: <><LinkOutlined /> {dict.attachClientsIb}</>,
                               onClick: () => {
                                 setActiveAdminForAttachDetach(row);
                                 setBulkAttachOpen(true);
@@ -729,7 +684,7 @@ export default function AdminAccessPage() {
                             },
                             {
                               key: 'detach',
-                              label: <><DisconnectOutlined /> {isFa ? 'جداسازی کلاینت‌ها از اینباند' : 'Detach Clients from Inbounds'}</>,
+                              label: <><DisconnectOutlined /> {dict.detachClientsIb}</>,
                               onClick: () => {
                                 setActiveAdminForAttachDetach(row);
                                 setBulkDetachOpen(true);
@@ -738,16 +693,16 @@ export default function AdminAccessPage() {
                             {
                               key: 'delete',
                               danger: true,
-                              label: <><DeleteOutlined /> {isFa ? 'حذف ادمین همکار' : 'Delete Reseller'}</>,
+                              label: <><DeleteOutlined /> {dict.deleteReseller}</>,
                               onClick: () => {
                                 modal.confirm({
-                                  title: isFa ? `حذف همکار ${row.remark || row.username}؟` : `Delete reseller ${row.remark || row.username}?`,
-                                   icon: <ExclamationCircleFilled style={{ color: '#faad14' }} />,
-                                  content: isFa ? 'آیا از حذف این ادمین همکار اطمینان دارید؟ تمامی دسترسی‌های پورتال او لغو خواهند شد. این عمل غیرقابل بازگشت است.' : 'Are you sure you want to delete this reseller? Their access link will be revoked. This cannot be undone.',
-                                  okText: isFa ? 'حذف' : 'Delete',
+                                  title: `${dict.deleteReseller}: ${row.remark || row.username}`,
+                                  icon: <ExclamationCircleFilled style={{ color: '#faad14' }} />,
+                                  content: dict.deleteResellerConfirm,
+                                  okText: dict.btnDelete || (isFa ? 'حذف' : 'Delete'),
                                   okType: 'danger',
                                   cancelText: dict.btnCancel,
-                                  onOk: () => handleDeleteAdmin(row.id)
+                                  onOk: () => handleDeleteAdmin(row)
                                 });
                               }
                             }
@@ -763,7 +718,7 @@ export default function AdminAccessPage() {
                   <div style={{ marginTop: 10 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', opacity: 0.8, marginBottom: 4 }}>
                       <span>
-                        {isFa ? 'حجم مصرفی کل کلاینت‌ها: ' : 'Total Clients Consumed: '}
+                        {dict.totalClientsConsumed}
                         <strong>{SizeFormatter.sizeFormat(usedBytes)}</strong>
                       </span>
                       <span>
@@ -792,16 +747,18 @@ export default function AdminAccessPage() {
                     {/* Meta stats below the bar */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: 8, fontSize: '11px', opacity: 0.6 }}>
                       <span>
-                        👤 {row.clientsCount || 0} {isFa ? 'کلاینت' : 'clients'}
+                        👤 {row.clientsCount || 0}{row.clientLimit ? ` / ${row.clientLimit}` : ''} {dict.clientCountSuffix}
                       </span>
                       <span>•</span>
                       <span>
-                        🌐 {Array.isArray(row.inbounds) ? row.inbounds.length : 0} {isFa ? 'اینباند مجاز' : 'allowed inbounds'}
+                        🌐 {Array.isArray(row.inbounds) ? row.inbounds.length : 0} {dict.inboundCountSuffix}
                       </span>
                       <span>•</span>
-                      <span>
-                        ⏳ {getExpiryText(row)}
-                      </span>
+                      <Tooltip title={row.expiryTime > 0 ? IntlUtil.formatDate(row.expiryTime, datepicker) : undefined}>
+                        <span style={{ cursor: row.expiryTime > 0 ? 'pointer' : 'default' }}>
+                          ⏳ {getExpiryText(row)}
+                        </span>
+                      </Tooltip>
                     </div>
                   </div>
                 </div>
@@ -888,7 +845,7 @@ export default function AdminAccessPage() {
           </Row>
 
           <Row gutter={16}>
-            <Col span={12}>
+            <Col xs={24} sm={8}>
               <Form.Item
                 name="volumeGB"
                 label={dict.labelQuota}
@@ -901,11 +858,24 @@ export default function AdminAccessPage() {
                 />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={8}>
               <Form.Item
                 name="days"
                 label={dict.labelDays}
                 tooltip={dict.labelDaysHint}
+              >
+                <InputNumber
+                  style={{ width: '100%', borderRadius: 6 }}
+                  min={0}
+                  placeholder="0 (Unlimited)"
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Form.Item
+                name="clientLimit"
+                label={isFa ? "سقف کلاینت (کاربر)" : "Client Limit"}
+                tooltip={isFa ? "حداکثر تعداد کلاینت‌هایی که این نماینده مجاز به ساخت آنهاست (۰ یعنی نامحدود)" : "Maximum number of clients this reseller is allowed to create (0 for unlimited)"}
               >
                 <InputNumber
                   style={{ width: '100%', borderRadius: 6 }}
@@ -959,10 +929,10 @@ export default function AdminAccessPage() {
 
           <Form.Item
             name="enable"
-            label={isFa ? 'وضعیت فعال بودن' : 'Account Status'}
+            label={dict.accountStatus}
             valuePropName="checked"
           >
-            <Switch checkedChildren={isFa ? 'فعال' : 'Active'} unCheckedChildren={isFa ? 'غیرفعال' : 'Inactive'} />
+            <Switch checkedChildren={dict.statusActive} unCheckedChildren={dict.statusDisabled} />
           </Form.Item>
         </Form>
       </Modal>
@@ -974,7 +944,7 @@ export default function AdminAccessPage() {
         onCancel={() => setIsInfoOpen(false)}
         footer={[
           <Button key="close" type="primary" onClick={() => setIsInfoOpen(false)}>
-            {isFa ? 'بستن' : 'Close'}
+            {dict.close}
           </Button>
         ]}
         width={550}
@@ -992,7 +962,7 @@ export default function AdminAccessPage() {
               <Descriptions.Item label={dict.labelPassword}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                   <span style={{ fontFamily: 'monospace', letterSpacing: showDetailsPassword ? 'normal' : '2px' }}>
-                    {showDetailsPassword ? (infoAdmin.password || (isFa ? '(تنظیم نشده)' : '(Not Set)')) : '••••••••'}
+                    {showDetailsPassword ? (infoAdmin.password || dict.notSet) : '••••••••'}
                   </span>
                   <Button
                     type="text"
@@ -1006,6 +976,11 @@ export default function AdminAccessPage() {
               <Descriptions.Item label={dict.totalClients}>
                 <Tag color="cyan">{infoAdmin.clientsCount || 0}</Tag>
               </Descriptions.Item>
+              <Descriptions.Item label={isFa ? "سقف تعداد کاربر" : "Client Limit"}>
+                <Tag color={infoAdmin.clientLimit ? 'orange' : 'green'}>
+                  {infoAdmin.clientLimit ? `${infoAdmin.clientLimit} ${dict.clientCountSuffix}` : dict.unlimited}
+                </Tag>
+              </Descriptions.Item>
               <Descriptions.Item label={dict.trafficUsed}>
                 <Tag color="blue">{SizeFormatter.sizeFormat(infoAdmin.trafficUsedBytes || 0)}</Tag>
               </Descriptions.Item>
@@ -1015,10 +990,15 @@ export default function AdminAccessPage() {
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label={dict.detailsCreated}>
-                {infoAdmin.createdAt ? IntlUtil.formatDate(infoAdmin.createdAt) : '-'}
+                {infoAdmin.createdAt ? IntlUtil.formatDate(infoAdmin.createdAt, datepicker) : '-'}
               </Descriptions.Item>
               <Descriptions.Item label={dict.detailsRemaining}>
                 <Tag color={isExpired(infoAdmin) ? 'red' : 'green'}>{getExpiryText(infoAdmin)}</Tag>
+                {infoAdmin.expiryTime > 0 && (
+                  <span style={{ fontSize: '11px', opacity: 0.7, marginInlineStart: 8 }}>
+                    ({IntlUtil.formatDate(infoAdmin.expiryTime, datepicker)})
+                  </span>
+                )}
               </Descriptions.Item>
               <Descriptions.Item label={dict.detailsAllowedIb}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>

@@ -244,6 +244,12 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	engine.Use(func(c *gin.Context) {
 		if res := c.GetHeader("X-Reseller-Base-Path"); res != "" {
 			c.Set("base_path", res)
+			c.Set("is_reseller", true)
+			trimmed := strings.Trim(res, "/")
+			segments := strings.Split(trimmed, "/")
+			if len(segments) > 0 {
+				c.Set("reseller_web_path", segments[len(segments)-1])
+			}
 		} else if _, exists := c.Get("base_path"); !exists {
 			c.Set("base_path", basePath)
 		}
@@ -325,9 +331,10 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	// non-SPA miss still returns a hard 404.
 	engine.NoRoute(func(c *gin.Context) {
 		basePathAttr := c.GetString("base_path")
-		if basePathAttr != "" && basePathAttr != "/" && c.GetHeader("X-Reseller-Redirected") != "true" {
+		if c.GetBool("is_reseller") && c.GetHeader("X-Reseller-Redirected") != "true" {
 			prefix := strings.Trim(basePathAttr, "/")
 			reqPath := c.Request.URL.Path
+
 			// If the path was not already rewritten by the middleware and starts with /<prefix>
 			if strings.HasPrefix(reqPath, "/"+prefix+"/") || reqPath == "/"+prefix {
 				newPath := strings.TrimPrefix(reqPath, "/"+prefix)
@@ -424,8 +431,10 @@ func (s *Server) startTask(restartXray bool) {
 	// Outbound subscription auto-refresh (respects per-sub updateInterval)
 	_, _ = s.cron.AddJob(cadenceOutboundSub, job.NewOutboundSubscriptionJob())
 
-	// check client ips from log file every day
-	_, _ = s.cron.AddJob("@daily", job.NewClearLogsJob())
+	// Clean old and oversized log files every hour
+	clearLogsJob := job.NewClearLogsJob()
+	_, _ = s.cron.AddJob("@hourly", clearLogsJob)
+	go clearLogsJob.Run()
 	_, _ = s.cron.AddJob("@hourly", job.NewWarpIpJob())
 
 	// Inbound traffic reset jobs

@@ -300,6 +300,11 @@ export default function SubPage() {
                   remainedLabel={remained}
                   expireMs={expireMs}
                   isActive={isActive}
+                  upLimitMbps={Number(subData.upLimitMbps || 0)}
+                  downLimitMbps={Number(subData.downLimitMbps || 0)}
+                  ipLimit={Number(subData.ipLimit || 0)}
+                  iranDirect={!!subData.iranDirect}
+                  showGauges={!!subData.showGauges}
                 />
 
                 {(subUrl || subJsonUrl || subClashUrl) && (

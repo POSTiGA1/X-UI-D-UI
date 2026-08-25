@@ -46,11 +46,13 @@ import { HttpUtil, SizeFormatter, IntlUtil } from '@/utils';
 import { useTheme } from '@/hooks/useTheme';
 import { useDatepicker } from '@/hooks/useDatepicker';
 import { useClients } from '@/hooks/useClients';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { formatInboundLabel } from '@/lib/inbounds/label';
 import ClientTrafficCell from '@/components/clients/ClientTrafficCell';
 import { LazyMount } from '@/components/utility';
 import AppSidebar from '@/layouts/AppSidebar';
+import { getAdminTranslations } from '@/utils/adminI18n';
 import '@/pages/clients/ClientsPage.css'; // Inherit layout classes
 
 interface ResellerAdmin {
@@ -124,7 +126,7 @@ function AdminClientsSubList({
   onClientChange: () => void;
   isFa: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [messageApi, messageContextHolder] = message.useMessage();
   const { datepicker } = useDatepicker();
   const { isMobile } = useMediaQuery();
@@ -146,7 +148,47 @@ function AdminClientsSubList({
     expireDiff,
     trafficDiff,
     setEnable,
+    getClientSpeed,
+    applyTrafficEvent,
+    applyClientStatsEvent,
   } = useClients();
+
+  useWebSocket({
+    traffic: applyTrafficEvent,
+    client_stats: (payload: unknown) => {
+      applyClientStatsEvent(payload);
+      const p = payload as { clients?: Array<{ email?: string; up?: number; down?: number; total?: number; enable?: boolean; expiryTime?: number }> };
+      if (Array.isArray(p?.clients) && p.clients.length > 0) {
+        const byEmail = new Map<string, (typeof p.clients)[0]>();
+        for (const row of p.clients) {
+          if (row?.email) byEmail.set(row.email.trim().toLowerCase(), row);
+        }
+        setClients((prev) => {
+          let changed = false;
+          const next = prev.map((item) => {
+            const upd = byEmail.get(item.email.trim().toLowerCase());
+            if (!upd) return item;
+            changed = true;
+            return {
+              ...item,
+              traffic: {
+                ...(item.traffic || { total: 0, expiryTime: 0, enable: true, lastOnline: 0 }),
+                up: typeof upd.up === 'number' ? upd.up : item.traffic?.up || 0,
+                down: typeof upd.down === 'number' ? upd.down : item.traffic?.down || 0,
+                total: typeof upd.total === 'number' ? upd.total : item.traffic?.total || 0,
+                enable: typeof upd.enable === 'boolean' ? upd.enable : item.traffic?.enable ?? true,
+                expiryTime: typeof upd.expiryTime === 'number' ? upd.expiryTime : item.traffic?.expiryTime || 0,
+              },
+            };
+          });
+          return changed ? next : prev;
+        });
+      }
+    },
+    clientStats: (payload: unknown) => {
+      applyClientStatsEvent(payload);
+    },
+  });
 
   const [clients, setClients] = useState<ClientSlim[]>([]);
   const [loading, setLoading] = useState(false);
@@ -170,11 +212,13 @@ function AdminClientsSubList({
 
   const [togglingEmail, setTogglingEmail] = useState<string | null>(null);
 
+  const adminDict = useMemo(() => getAdminTranslations(i18n.language), [i18n.language]);
+
   const dict = {
-    searchPlaceholder: isFa ? 'جستجوی کلاینت...' : 'Search client...',
-    btnCreateClient: isFa ? 'کلاینت جدید' : 'New Client',
-    toastEnabled: isFa ? 'کلاینت فعال شد.' : 'Client enabled.',
-    toastDisabled: isFa ? 'کلاینت غیرفعال شد.' : 'Client disabled.',
+    searchPlaceholder: adminDict.searchClientPlaceholder,
+    btnCreateClient: adminDict.newClientBtn,
+    toastEnabled: adminDict.toastEnabled,
+    toastDisabled: adminDict.toastDisabled,
   };
 
   const fetchClients = useCallback(async (silentLoad?: boolean | React.SyntheticEvent | unknown) => {
@@ -212,6 +256,7 @@ function AdminClientsSubList({
     }, 10000);
     return () => clearInterval(timer);
   }, [page, pageSize, fetchClients]);
+
 
   const onShowQr = useCallback(async (row: any) => {
     const full = await hydrate(row.email);
@@ -545,15 +590,21 @@ function AdminClientsSubList({
       title: t('pages.clients.traffic'),
       key: 'traffic',
       width: 250,
-      render: (_v, record) => (
-        <ClientTrafficCell
-          up={record.traffic?.up}
-          down={record.traffic?.down}
-          total={record.totalGB}
-          enabled={record.enable}
-          trafficDiff={trafficDiff}
-        />
-      ),
+      render: (_v, record) => {
+        const speed = getClientSpeed(record.email);
+        const online = (Array.isArray(onlines) && onlines.includes(record.email)) || speed.speedUp > 0 || speed.speedDown > 0;
+        return (
+          <ClientTrafficCell
+            up={record.traffic?.up}
+            down={record.traffic?.down}
+            total={record.totalGB}
+            enabled={record.enable}
+            trafficDiff={trafficDiff}
+            speedUp={online ? speed.speedUp : 0}
+            speedDown={online ? speed.speedDown : 0}
+          />
+        );
+      },
     },
     {
       title: t('pages.clients.remaining'),
@@ -571,7 +622,7 @@ function AdminClientsSubList({
         </Tooltip>
       ),
     },
-  ], [t, togglingEmail, clientBucket, isOnline, inboundsById, datepicker, trafficDiff, isFa, expiryLabel, onDelete, onEdit, onResetTraffic, onShowInfo, onShowQr, onToggleEnable]);
+  ], [t, togglingEmail, clientBucket, isOnline, inboundsById, datepicker, trafficDiff, isFa, expiryLabel, onDelete, onEdit, onResetTraffic, onShowInfo, onShowQr, onToggleEnable, getClientSpeed, onlines]);
 
   return (
     <div style={{ padding: isMobile ? '8px' : '16px', background: 'var(--ant-color-fill-quaternary)', borderRadius: '12px', margin: '8px 0', border: '1px solid var(--ant-color-border-secondary)' }}>
@@ -658,7 +709,7 @@ function AdminClientsSubList({
                     {bucket === 'depleted' && <Tag color="red" className="status-tag">{t('depleted')}</Tag>}
                     {bucket === 'expiring' && <Tag color="orange" className="status-tag">{t('depletingSoon')}</Tag>}
                     <div className="card-actions">
-                      <Tooltip title={t('pages.clients.clientInfo')}>
+                      <Tooltip title={isMobile ? undefined : t('pages.clients.clientInfo')}>
                         <InfoCircleOutlined
                           className="row-action-trigger"
                           role="button"
@@ -706,14 +757,22 @@ function AdminClientsSubList({
                       </Dropdown>
                     </div>
                   </div>
-                  <ClientTrafficCell
-                    compact
-                    up={row.traffic?.up}
-                    down={row.traffic?.down}
-                    total={row.totalGB}
-                    enabled={row.enable}
-                    trafficDiff={trafficDiff}
-                  />
+                  {(() => {
+                    const speed = getClientSpeed(row.email);
+                    const online = (Array.isArray(onlines) && onlines.includes(row.email)) || speed.speedUp > 0 || speed.speedDown > 0;
+                    return (
+                      <ClientTrafficCell
+                        compact
+                        up={row.traffic?.up}
+                        down={row.traffic?.down}
+                        total={row.totalGB}
+                        enabled={row.enable}
+                        trafficDiff={trafficDiff}
+                        speedUp={online ? speed.speedUp : 0}
+                        speedDown={online ? speed.speedDown : 0}
+                      />
+                    );
+                  })()}
                 </div>
               );
             })}
@@ -786,6 +845,7 @@ export default function ClientsAdminPage() {
   const { isDark, isUltra, antdThemeConfig } = useTheme();
   const { isMobile } = useMediaQuery();
   const isFa = i18n.language?.startsWith('fa');
+  const adminDict = useMemo(() => getAdminTranslations(i18n.language), [i18n.language]);
 
   const pageClass = useMemo(() => {
     const classes = ['clients-page'];
@@ -796,22 +856,22 @@ export default function ClientsAdminPage() {
 
   // Dictionary for main UI
   const dict = {
-    title: isFa ? 'مدیریت ادمین‌ها و کلاینت‌ها' : 'Clients & Admins Management',
-    subTitle: isFa ? 'مشاهده و مدیریت کلاینت‌های ساخته شده توسط ادمین‌ها و همکاران' : 'Monitor and manage clients created by reseller partners & admins',
-    searchPlaceholder: isFa ? 'جستجوی ادمین...' : 'Search admin...',
-    colAdmin: isFa ? 'ادمین / همکار' : 'Reseller Admin',
-    colClientsCount: isFa ? 'تعداد کلاینت‌ها' : 'Clients count',
-    colVolume: isFa ? 'سهمیه حجم' : 'Volume Quota',
-    colTrafficUsed: isFa ? 'کل حجم مصرفی' : 'Total Traffic Used',
-    colExpiry: isFa ? 'تاریخ انقضا' : 'Expiry Date',
-    colStatus: isFa ? 'وضعیت ادمین' : 'Admin Status',
-    btnReload: isFa ? 'بروزرسانی' : 'Reload',
-    unlimited: isFa ? 'نامحدود' : 'Unlimited',
-    never: isFa ? 'هرگز' : 'Never',
-    statsTotalAdmins: isFa ? 'کل ادمین‌ها' : 'Total Admins',
-    statsActiveAdmins: isFa ? 'ادمین‌های فعال' : 'Active Admins',
-    statsTotalClients: isFa ? 'کل کلاینت‌ها' : 'Total Clients',
-    statsTrafficUsed: isFa ? 'کل حجم مصرفی همکاران' : 'Total Traffic Used',
+    title: adminDict.clientsAdminTitle,
+    subTitle: adminDict.clientsAdminSubTitle,
+    searchPlaceholder: adminDict.searchPlaceholder,
+    colAdmin: adminDict.colRemark,
+    colClientsCount: adminDict.totalClients,
+    colVolume: adminDict.colQuota,
+    colTrafficUsed: adminDict.trafficUsed,
+    colExpiry: adminDict.colExpiry,
+    colStatus: adminDict.accountStatus,
+    btnReload: adminDict.reloadTip,
+    unlimited: adminDict.unlimited,
+    never: adminDict.never,
+    statsTotalAdmins: adminDict.statsTotal,
+    statsActiveAdmins: adminDict.statsActive,
+    statsTotalClients: adminDict.totalClients,
+    statsTrafficUsed: adminDict.trafficUsed,
   };
 
   const [admins, setAdmins] = useState<ResellerAdmin[]>([]);
@@ -832,8 +892,9 @@ export default function ClientsAdminPage() {
   };
 
   // Fetch reseller admins
-  const fetchAdmins = useCallback(async () => {
-    setLoading(true);
+  const fetchAdmins = useCallback(async (silentLoad?: boolean | React.SyntheticEvent | unknown) => {
+    const isSilent = silentLoad === true;
+    if (!isSilent) setLoading(true);
     try {
       const res = await HttpUtil.get<ResellerAdmin[]>('/panel/api/admins/list', undefined, { silent: true });
       if (res.success && Array.isArray(res.obj)) {
@@ -956,7 +1017,7 @@ export default function ClientsAdminPage() {
       key: 'enable',
       render: (record: ResellerAdmin) => (
         <Tag color={record.enable ? 'success' : 'error'} style={{ borderRadius: 6 }}>
-          {record.enable ? (isFa ? 'فعال' : 'Active') : (isFa ? 'غیرفعال' : 'Deactive')}
+          {record.enable ? adminDict.statusActive : adminDict.statusDisabled}
         </Tag>
       ),
     },

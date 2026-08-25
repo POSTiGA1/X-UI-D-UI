@@ -6,6 +6,8 @@ import { CopyOutlined, EyeOutlined, QrcodeOutlined, ReloadOutlined } from '@ant-
 import { ClipboardManager, HttpUtil, IntlUtil, SizeFormatter } from '@/utils';
 import { formatInboundLabel } from '@/lib/inbounds/label';
 import { normalizeClientIps, type ClientIpInfo } from '@/lib/clients/ip-log';
+import { useClientHwids } from '@/hooks/useClientHwids';
+import ClientHwidListModal from '@/components/clients/ClientHwidList';
 import { useDatepicker } from '@/hooks/useDatepicker';
 import type { ClientRecord, InboundOption } from '@/hooks/useClients';
 import { isPostQuantumLink } from '@/lib/xray/inbound-link';
@@ -13,6 +15,7 @@ import { LinkTags, linkMetaText, parseLinkParts } from '@/lib/xray/link-label';
 import { QrPanel } from '@/pages/inbounds/qr';
 import ConfigBlock from '@/components/clients/ConfigBlock';
 import { buildWireguardClientConfig, findWireguardInbound, isWireguardClient } from './wireguardConfig';
+import { getSpeedTranslations } from '@/utils/speedI18n';
 import './ClientInfoModal.css';
 
 const INBOUND_PROTOCOL_COLORS: Record<string, string> = {
@@ -73,7 +76,8 @@ export default function ClientInfoModal({
   onOpenChange,
 }: ClientInfoModalProps) {
   const { datepicker } = useDatepicker();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const speedDict = useMemo(() => getSpeedTranslations(i18n.language), [i18n.language]);
   const expiryLabel = (ts?: number) => {
     if (!ts) return '∞';
     if (ts < 0) {
@@ -96,12 +100,26 @@ export default function ClientInfoModal({
   const [ipsLoading, setIpsLoading] = useState(false);
   const [ipsClearing, setIpsClearing] = useState(false);
   const [ipsModalOpen, setIpsModalOpen] = useState(false);
+  const [hwidsModalOpen, setHwidsModalOpen] = useState(false);
+
+  const {
+    clientHwids,
+    hwidsLoading,
+    hwidsClearing,
+    deletingHwidId,
+    loadHwids,
+    clearHwids,
+    deleteHwid,
+    resetHwids,
+  } = useClientHwids(client?.email);
 
   useEffect(() => {
     if (!open) {
       setLinks([]);
       setClientIps([]);
       setIpsModalOpen(false);
+      setHwidsModalOpen(false);
+      resetHwids();
       return;
     }
     if (!client?.subId) return;
@@ -114,7 +132,7 @@ export default function ClientInfoModal({
       setLinks(msg?.success && Array.isArray(msg.obj) ? msg.obj : []);
     })();
     return () => { cancelled = true; };
-  }, [open, client?.subId]);
+  }, [open, client?.subId, resetHwids]);
 
   const traffic = client?.traffic || null;
   const totalBytes = client?.totalGB || 0;
@@ -181,6 +199,11 @@ export default function ClientInfoModal({
   function openIpsModal() {
     setIpsModalOpen(true);
     if (clientIps.length === 0) void loadIps();
+  }
+
+  function openHwidsModal() {
+    setHwidsModalOpen(true);
+    if (clientHwids.length === 0) void loadHwids();
   }
 
   return (
@@ -300,10 +323,34 @@ export default function ClientInfoModal({
                   <td>{!client.limitIp ? <Tag>∞</Tag> : <Tag>{client.limitIp}</Tag>}</td>
                 </tr>
                 <tr>
+                  <td>{speedDict.speedLimitTitle}</td>
+                  <td>
+                    {(!client.uploadLimit && !client.uploadMbps && !client.downloadLimit && !client.downloadMbps) ? (
+                      <Tag>∞</Tag>
+                    ) : (
+                      <Tag color="cyan">
+                        ↑ {client.uploadLimit || client.uploadMbps || '∞'} Mbps / ↓ {client.downloadLimit || client.downloadMbps || '∞'} Mbps
+                      </Tag>
+                    )}
+                  </td>
+                </tr>
+                <tr>
                   <td>{t('pages.inbounds.IPLimitlog')}</td>
                   <td>
                     <Button size="small" icon={<EyeOutlined />} aria-label={t('pages.clients.ipLog')} loading={ipsLoading} onClick={openIpsModal}>
                       {clientIps.length > 0 ? clientIps.length : ''}
+                    </Button>
+                  </td>
+                </tr>
+                <tr>
+                  <td>{t('pages.clients.limitHwid') || 'HWID محدودیت'}</td>
+                  <td>{!(client as ClientRecord & { limitHwid?: number }).limitHwid ? <Tag>∞</Tag> : <Tag>{(client as ClientRecord & { limitHwid?: number }).limitHwid}</Tag>}</td>
+                </tr>
+                <tr>
+                  <td>{t('pages.clients.hwidLog') || 'HWID دستگاه‌های'}</td>
+                  <td>
+                    <Button size="small" icon={<EyeOutlined />} aria-label={t('pages.clients.hwidLog')} loading={hwidsLoading} onClick={openHwidsModal}>
+                      {clientHwids.length > 0 ? clientHwids.length : ''}
                     </Button>
                   </td>
                 </tr>
@@ -563,6 +610,19 @@ export default function ClientInfoModal({
           <Tag>{t('tgbot.noIpRecord')}</Tag>
         )}
       </Modal>
+
+      <ClientHwidListModal
+        open={hwidsModalOpen}
+        email={client?.email}
+        hwids={clientHwids}
+        loading={hwidsLoading}
+        clearing={hwidsClearing}
+        deletingHwidId={deletingHwidId}
+        onRefresh={loadHwids}
+        onClearAll={clearHwids}
+        onDeleteSingle={deleteHwid}
+        onClose={() => setHwidsModalOpen(false)}
+      />
     </>
   );
 }

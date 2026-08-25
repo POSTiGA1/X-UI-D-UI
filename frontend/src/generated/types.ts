@@ -60,6 +60,10 @@ export interface AllSetting {
   subEnableRouting: boolean;
   subEncrypt: boolean;
   subHideSettings: boolean;
+  subDaltoonTemplate?: boolean;
+  subShowGauges?: boolean;
+  subIranDirect?: boolean;
+  subIranRules?: string;
   subIncyEnableRouting: boolean;
   subIncyRoutingRules: string;
   subJsonEnable: boolean;
@@ -165,6 +169,10 @@ export interface AllSettingView {
   subEnableRouting: boolean;
   subEncrypt: boolean;
   subHideSettings: boolean;
+  subDaltoonTemplate?: boolean;
+  subShowGauges?: boolean;
+  subIranDirect?: boolean;
+  subIranRules?: string;
   subIncyEnableRouting: boolean;
   subIncyRoutingRules: string;
   subJsonEnable: boolean;
@@ -523,5 +531,44 @@ export interface User {
   id: number;
   password: string;
   username: string;
+}
+
+export type GeoKind = 'site' | 'ip';
+
+export interface GeoFile {
+  name: string;
+  kind: GeoKind;
+  size: number;
+  modifiedAt: number;
+  categories: number;
+  error?: string | null;
+}
+
+export interface GeoCategory {
+  code: string;
+  entries: number;
+  attributes: string[];
+}
+
+export interface GeoEntry {
+  kind: string;
+  value: string;
+}
+
+export interface GeoCategoryPage {
+  total: number;
+  items: GeoCategory[];
+}
+
+export interface GeoEntryPage {
+  total: number;
+  items: GeoEntry[];
+}
+
+export interface GeodataTokenIssue {
+  token: string;
+  reason: string;
+  file?: string | null;
+  code?: string | null;
 }
 

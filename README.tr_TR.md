@@ -18,9 +18,9 @@
   <a href="https://goreportcard.com/report/github.com/mdaltoon10/D-UI/v3"><img src="https://goreportcard.com/badge/github.com/mdaltoon10/D-UI/v3" alt="Go Report Card"></a>
 </p>
 
-**Daltoon-UI**, [Xray-core](https://github.com/XTLS/Xray-core) sunucularını yönetmek için geliştirilmiş profesyonel, açık kaynaklı bir web kontrol panelidir. Tek bir sanal sunucudan (VPS) çok düğümlü (multi-node) dağıtımlara kadar çok çeşitli proxy ve VPN protokollerini kurmak, yapılandırmak ve izlemek için temiz, çok dilli bir arayüz sağlar.
+**D-UI**, [Xray-core](https://github.com/XTLS/Xray-core) sunucularını yönetmek için geliştirilmiş profesyonel, açık kaynaklı bir web kontrol panelidir. Tek bir sanal sunucudan (VPS) çok düğümlü (multi-node) dağıtımlara kadar çok çeşitli proxy ve VPN protokollerini kurmak, yapılandırmak ve izlemek için temiz, çok dilli bir arayüz sağlar.
 
-Orijinal Daltoon-UI projesinin geliştirilmiş bir çatallaması (fork) olarak inşa edilen Daltoon-UI; çok daha geniş protokol desteği, artırılmış kararlılık, kullanıcı başına trafik hesaplama ve kullanım kolaylığı sağlayan birçok yeni özellik sunar.
+Orijinal D-UI projesinin geliştirilmiş bir çatallaması (fork) olarak inşa edilen D-UI; çok daha geniş protokol desteği, artırılmış kararlılık, kullanıcı başına trafik hesaplama ve kullanım kolaylığı sağlayan birçok yeni özellik sunar.
 
 > [!IMPORTANT]
 > Bu proje yalnızca kişisel kullanım için tasarlanmıştır. Lütfen yasadışı amaçlar için veya üretim (production) ortamında kullanmayın.
@@ -48,10 +48,10 @@ Orijinal Daltoon-UI projesinin geliştirilmiş bir çatallaması (fork) olarak i
 bash <(curl -Ls https://raw.githubusercontent.com/mdaltoon10/D-UI/main/install.sh)
 ```
 
-Belirli bir sürümü kurmak için, etiketini (ör. `v1.4.1`) ekleyin:
+Belirli bir sürümü kurmak için, etiketini (ör. `v3.0.2`) ekleyin:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/mdaltoon10/D-UI/main/install.sh) v1.4.1
+bash <(curl -Ls https://raw.githubusercontent.com/mdaltoon10/D-UI/main/install.sh) v3.0.2
 ```
 
 Sürekli güncellenen **dev** sürümünü (kararlı bir sürüm değil; `main` dalından her commit'te oluşturulan en son ön sürüm) kurmak için `dev-latest` değerini geçirin:
@@ -82,7 +82,7 @@ sona hiçbir soru sormadan tamamlanır, rastgele kimlik bilgileri oluşturup bun
 
 ## Veritabanı Seçenekleri
 
-Daltoon-UI kurulum sırasında seçilebilecek iki arka uç (backend) destekler:
+D-UI kurulum sırasında seçilebilecek iki arka uç (backend) destekler:
 
 - **SQLite** (varsayılan) — `/etc/d-ui/d-ui.db` konumunda tek bir dosya. Kurulum gerektirmez, küçük ve orta ölçekli dağıtımlar için idealdir.
 - **PostgreSQL** — Yüksek kullanıcı sayıları veya çoklu düğüm (multi-node) kurulumları için önerilir. Yükleyici sizin için yerel olarak PostgreSQL kurabilir veya mevcut bir sunucuya DSN bağlantısı kabul edebilir.

@@ -50,6 +50,7 @@ func (a *BaseController) checkLogin(c *gin.Context) {
 					correctBasePath += trimmedMain + "/"
 				}
 				correctBasePath += admin.WebPath + "/"
+
 				currentBasePath := c.GetString("base_path")
 				if currentBasePath != correctBasePath {
 					if isAjax(c) {
@@ -80,7 +81,9 @@ func (a *BaseController) checkLogin(c *gin.Context) {
 			if db != nil {
 				var admin model.ResellerAdmin
 				webPath := strings.Trim(currentBasePath, "/")
-				if err := db.Where("web_path = ?", webPath).First(&admin).Error; err == nil {
+				parts := strings.Split(webPath, "/")
+				webPath = parts[len(parts)-1]
+				if err := db.Where("LOWER(web_path) = LOWER(?)", webPath).First(&admin).Error; err == nil {
 					// Impersonate the reseller for this request
 					c.Set("IMPERSONATE_RESELLER_ID", admin.Id)
 					c.Set("IMPERSONATE_RESELLER_USERNAME", admin.Username)

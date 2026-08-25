@@ -51,6 +51,7 @@ function defaultValues(): NodeFormValues {
     inboundSyncMode: 'all',
     inboundTags: [],
     outboundTag: '',
+    publicAddress: '',
   };
 }
 
@@ -79,7 +80,6 @@ export default function NodeFormModal({
   const inboundSyncMode = Form.useWatch('inboundSyncMode', form) ?? 'all';
   const { data: outboundGroups } = useOutboundTagGroups({ excludeBlackhole: true });
 
-  // Outbounds and balancers share one picker (like the panel-outbound selector);
   // when balancers exist they get a labeled group so it's clear the selection
   // routes through a balancer. Empty falls back to the placeholder ("Direct
   // connection") rather than a synthetic option, so it can't read as a second
@@ -137,6 +137,7 @@ export default function NodeFormModal({
       inboundSyncMode: values.inboundSyncMode,
       inboundTags: values.inboundSyncMode === 'selected' ? values.inboundTags : [],
       outboundTag: values.outboundTag || '',
+      publicAddress: values.publicAddress?.trim() || '',
     };
   }
 
@@ -310,14 +311,22 @@ export default function NodeFormModal({
             </Col>
             <Col xs={24} md={12}>
               <Form.Item
-                label={t('pages.nodes.enable')}
-                name="enable"
-                valuePropName="checked"
+                label={t('pages.nodes.publicAddress')}
+                name="publicAddress"
+                tooltip={t('pages.nodes.publicAddressHint')}
               >
-                <Switch />
+                <Input placeholder={t('pages.nodes.publicAddressPlaceholder')} />
               </Form.Item>
             </Col>
           </Row>
+
+          <Form.Item
+            label={t('pages.nodes.enable')}
+            name="enable"
+            valuePropName="checked"
+          >
+            <Switch />
+          </Form.Item>
 
           <Form.Item
             label={t('pages.nodes.allowPrivateAddress')}
@@ -400,7 +409,7 @@ export default function NodeFormModal({
             />
           </Form.Item>
 
-          <Form.Item
+           <Form.Item
             label={t('pages.nodes.inboundSyncMode')}
             name="inboundSyncMode"
             tooltip={t('pages.nodes.inboundSyncModeHint')}

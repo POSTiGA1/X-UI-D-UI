@@ -35,6 +35,7 @@ import {
   WarningOutlined,
   ExportOutlined,
   ImportOutlined,
+  GlobalOutlined,
 } from '@ant-design/icons';
 
 import { HttpUtil } from '@/utils';
@@ -85,6 +86,7 @@ interface OutboundsTabProps {
   onTestAll: (mode: string) => void;
   onShowWarp: () => void;
   onShowNord: () => void;
+  onShowPia: () => void;
   onRefreshXrayData?: () => void;
 }
 
@@ -105,6 +107,7 @@ export default function OutboundsTab({
   onTestAll,
   onShowWarp,
   onShowNord,
+  onShowPia,
   onRefreshXrayData,
 }: OutboundsTabProps) {
   const { t } = useTranslation();
@@ -470,6 +473,7 @@ export default function OutboundsTab({
                   items: [
                     { key: 'warp', icon: <CloudOutlined />, label: 'WARP', onClick: onShowWarp },
                     { key: 'nord', icon: <ApiOutlined />, label: 'NordVPN', onClick: onShowNord },
+                    { key: 'pia', icon: <GlobalOutlined />, label: 'PIA WireGuard', onClick: onShowPia },
                     { type: 'divider' },
                     { key: 'import', icon: <ImportOutlined />, label: t('pages.xray.importOutbounds'), onClick: () => setImportOpen(true) },
                     { key: 'export', icon: <ExportOutlined />, label: t('pages.xray.exportOutbounds'), disabled: outbounds.length === 0, onClick: exportOutbounds },

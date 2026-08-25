@@ -12,6 +12,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/mdaltoon10/D-UI/v3/internal/config"
+	"github.com/mdaltoon10/D-UI/v3/internal/database"
+	"github.com/mdaltoon10/D-UI/v3/internal/database/model"
 	"github.com/mdaltoon10/D-UI/v3/internal/logger"
 	"github.com/mdaltoon10/D-UI/v3/internal/web/session"
 )
@@ -126,12 +128,34 @@ func serveDistPage(c *gin.Context, name string) {
 		nonceAttr = ` nonce="` + htmlpkg.EscapeString(nonce) + `"`
 	}
 	script := `<script` + nonceAttr + `>window.X_UI_BASE_PATH="` + escapedBase + `"`
-	isReseller := session.IsResellerLogin(c) || c.GetBool("is_reseller")
+	isReseller := c.GetBool("is_reseller")
+	if name != "login.html" && session.IsResellerLogin(c) {
+		isReseller = true
+	}
 	if isReseller {
 		script += `;window.X_UI_IS_RESELLER=true`
 		if username := session.GetLoginResellerUsername(c); username != "" {
 			escapedResellerUser := jsEscape.Replace(username)
 			script += `;window.X_UI_RESELLER_USER="` + escapedResellerUser + `"`
+		} else if impUser := c.GetString("IMPERSONATE_RESELLER_USERNAME"); impUser != "" {
+			escapedResellerUser := jsEscape.Replace(impUser)
+			script += `;window.X_UI_RESELLER_USER="` + escapedResellerUser + `"`
+		}
+		resellerWebPath := c.GetString("reseller_web_path")
+		if resellerWebPath == "" {
+			if resellerId := session.GetLoginReseller(c); resellerId != "" {
+				db := database.GetDB()
+				if db != nil {
+					var admin model.ResellerAdmin
+					if err := db.Where("id = ?", resellerId).First(&admin).Error; err == nil {
+						resellerWebPath = admin.WebPath
+					}
+				}
+			}
+		}
+		if resellerWebPath != "" {
+			escapedResellerPath := jsEscape.Replace(resellerWebPath)
+			script += `;window.X_UI_RESELLER_WEB_PATH="` + escapedResellerPath + `"`
 		}
 	}
 	if name != "login.html" {

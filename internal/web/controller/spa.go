@@ -16,7 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// DUIController is the main controller for the Daltoon-UI panel, serving the SPA shell.
+// DUIController is the main controller for the D-UI panel, serving the SPA shell.
 type DUIController struct {
 	BaseController
 	adminService panel.AdminService
@@ -38,25 +38,43 @@ func NewXUIController(g *gin.RouterGroup) *DUIController {
 // The /panel/api, /panel/setting, /panel/xray sub-routers register POST/JSON
 // endpoints on different paths and stay untouched by the shell handler.
 func (a *DUIController) initRouter(g *gin.RouterGroup) {
-	g = g.Group("/panel")
-	g.Use(a.checkLogin)
-	g.Use(middleware.CSRFMiddleware())
+	spaRoutes := []string{
+		"/",
+		"/inbounds",
+		"/clients",
+		"/groups",
+		"/nodes",
+		"/hosts",
+		"/settings",
+		"/xray",
+		"/outbound",
+		"/routing",
+		"/api-docs",
+		"/admin-access",
+		"/clients-admin",
+		"/authentication",
+	}
 
-	g.GET("/", a.panelSPA)
-	g.GET("/inbounds", a.panelSPA)
-	g.GET("/clients", a.panelSPA)
-	g.GET("/groups", a.panelSPA)
-	g.GET("/nodes", a.panelSPA)
-	g.GET("/settings", a.panelSPA)
-	g.GET("/xray", a.panelSPA)
-	g.GET("/outbound", a.panelSPA)
-	g.GET("/routing", a.panelSPA)
-	g.GET("/api-docs", a.panelSPA)
+	// Register routes under /panel/
+	panelGroup := g.Group("/panel")
+	panelGroup.Use(a.checkLogin)
+	panelGroup.Use(middleware.CSRFMiddleware())
+
+	for _, r := range spaRoutes {
+		panelGroup.GET(r, a.panelSPA)
+	}
+
+	// Register routes under root base path as well (for direct SPA navigation without /panel prefix)
+	for _, r := range spaRoutes {
+		if r != "/" {
+			g.GET(r, a.checkLogin, a.panelSPA)
+		}
+	}
 
 	// SPA pages built by Vite don't have a server-rendered <meta name="csrf-token">,
 	// so they fetch the session token via this endpoint at startup and replay it
 	// on subsequent unsafe requests through axios.
-	g.GET("/csrf-token", a.csrfToken)
+	panelGroup.GET("/csrf-token", a.csrfToken)
 }
 
 // panelSPA serves the React SPA shell. Every GET under /panel/ that isn't an
@@ -77,7 +95,13 @@ func (a *DUIController) HandleNoRoutePanelSPA(c *gin.Context) bool {
 			serveDistAsset(c, reqPath[idx:])
 			return true
 		}
+		return false
 	}
+
+	if !isPanelSPAFallbackRequest(c) {
+		return false
+	}
+
 	basePath := c.GetString("base_path")
 	if basePath == "" {
 		basePath = "/"
@@ -85,7 +109,7 @@ func (a *DUIController) HandleNoRoutePanelSPA(c *gin.Context) bool {
 
 	// 1. Check if it's already been redirected by a reseller middleware/NoRoute
 	if c.GetHeader("X-Reseller-Redirected") == "true" {
-		if !isStaticAssetPath(reqPath) && !strings.Contains(reqPath, "/api/") && !strings.Contains(reqPath, "/ws/") {
+		if !isStaticAssetPath(reqPath) && !strings.Contains(reqPath, "/api/") && !strings.Contains(reqPath, "/ws") {
 			if !session.IsLogin(c) {
 				serveDistPage(c, "login.html")
 			} else {
@@ -95,11 +119,12 @@ func (a *DUIController) HandleNoRoutePanelSPA(c *gin.Context) bool {
 		}
 	}
 
-	// 3. Check if this is a sub-path of a reseller (e.g. /Mamad/clients)
+	// 2. Check if this is a sub-path of a reseller (e.g. /Mamad/clients, /Mamad/panel/clients)
 	resellerPath, ok := a.isResellerSubPath(c)
 	if ok {
 		c.Set("base_path", resellerPath)
 		c.Set("is_reseller", true)
+		basePath = resellerPath
 		if !session.IsLogin(c) {
 			if isAjax(c) {
 				pureJsonMsg(c, http.StatusUnauthorized, false, I18nWeb(c, "pages.login.loginAgain"))
@@ -112,12 +137,6 @@ func (a *DUIController) HandleNoRoutePanelSPA(c *gin.Context) bool {
 		a.panelSPA(c)
 		return true
 	}
-
-	if !isPanelSPAFallbackRequest(c) {
-		return false
-	}
-
-
 
 	if !session.IsLogin(c) {
 		if isAjax(c) {
@@ -146,10 +165,14 @@ func (a *DUIController) HandleNoRoutePanelSPA(c *gin.Context) bool {
 					correctBasePath += trimmedMain + "/"
 				}
 				correctBasePath += admin.WebPath + "/"
+
+				c.Set("base_path", correctBasePath)
+				c.Set("is_reseller", true)
+
 				if basePath != correctBasePath {
 					suffix := ""
-					if strings.HasPrefix(reqPath, "/panel") {
-						suffix = strings.TrimPrefix(reqPath, "/panel")
+					if idx := strings.Index(reqPath, "/panel"); idx != -1 {
+						suffix = reqPath[idx+len("/panel"):]
 					}
 					c.Redirect(http.StatusTemporaryRedirect, correctBasePath+"panel"+suffix)
 					return true
@@ -164,7 +187,9 @@ func (a *DUIController) HandleNoRoutePanelSPA(c *gin.Context) bool {
 		if db != nil {
 			var admin model.ResellerAdmin
 			webPath := strings.Trim(basePath, "/")
-			if err := db.Where("web_path = ?", webPath).First(&admin).Error; err == nil {
+			parts := strings.Split(webPath, "/")
+			webPath = parts[len(parts)-1]
+			if err := db.Where("LOWER(web_path) = LOWER(?)", webPath).First(&admin).Error; err == nil {
 				c.Set("IMPERSONATE_RESELLER_ID", admin.Id)
 				c.Set("IMPERSONATE_RESELLER_USERNAME", admin.Username)
 			}
@@ -203,6 +228,14 @@ func (a *DUIController) isResellerSubPath(c *gin.Context) (string, bool) {
 
 	// Check if segment at startIndex is a reseller
 	webPath := segments[startIndex]
+	reserved := map[string]bool{
+		"panel": true, "assets": true, "api": true, "login": true, "logout": true,
+		"portal": true, "csrf-token": true, "getTwoFactorEnable": true, "ws": true, "sub": true,
+	}
+	if reserved[strings.ToLower(webPath)] {
+		return "", false
+	}
+
 	admin, err := a.adminService.GetAdminByWebPath(webPath)
 	if err != nil || admin == nil {
 		return "", false
@@ -226,15 +259,18 @@ func isPanelSPAFallbackRequest(c *gin.Context) bool {
 	}
 
 	reqPath := c.Request.URL.Path
-	isReseller := c.GetBool("is_reseller")
 
-	// If it's not a reseller path and doesn't start with /panel, don't serve SPA
-	if !isReseller && !strings.HasPrefix(reqPath, "/panel") {
-		return false
-	}
-
-	// Don't serve SPA for API/WS/Assets
-	if isStaticAssetPath(reqPath) || strings.Contains(reqPath, "/api/") || strings.Contains(reqPath, "/ws/") {
+	// Don't serve SPA for static assets, API endpoints, WebSocket, or Subscriptions
+	if isStaticAssetPath(reqPath) ||
+		strings.Contains(reqPath, "/api/") ||
+		strings.HasSuffix(reqPath, "/api") ||
+		strings.Contains(reqPath, "/ws") ||
+		strings.Contains(reqPath, "/sub/") ||
+		strings.HasSuffix(reqPath, "/csrf-token") ||
+		strings.Contains(reqPath, "/csrf-token/") ||
+		strings.HasSuffix(reqPath, "/login") ||
+		strings.HasSuffix(reqPath, "/logout") ||
+		strings.HasSuffix(reqPath, "/getTwoFactorEnable") {
 		return false
 	}
 
