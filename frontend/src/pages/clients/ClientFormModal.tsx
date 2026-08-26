@@ -389,7 +389,7 @@ export default function ClientFormModal({
     }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, isEdit, effectiveInboundIds, inbounds]);
+  }, [open, isEdit, client]);
 
   const flowCapableIds = useMemo(() => {
     const ids = new Set<number>();
