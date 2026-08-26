@@ -644,6 +644,8 @@ type ClientRecord struct {
 	LimitIP      int    `json:"limitIp" gorm:"column:limit_ip"`
 	UploadMbps   int    `json:"uploadMbps" gorm:"column:upload_mbps;default:0"`
 	DownloadMbps int    `json:"downloadMbps" gorm:"column:download_mbps;default:0"`
+	UploadLimit  int    `json:"uploadLimit" gorm:"-"`
+	DownloadLimit int   `json:"downloadLimit" gorm:"-"`
 	TotalGB      int64  `json:"totalGB" gorm:"column:total_gb"`
 	ExpiryTime   int64  `json:"expiryTime" gorm:"column:expiry_time"`
 	Enable       bool   `json:"enable" gorm:"default:true"`
@@ -675,6 +677,18 @@ func (ClientGroup) TableName() string { return "client_groups" }
 // JSON-text columns. Empty storage renders as null.
 func (r ClientRecord) MarshalJSON() ([]byte, error) {
 	type alias ClientRecord
+	if r.UploadLimit == 0 && r.UploadMbps > 0 {
+		r.UploadLimit = r.UploadMbps
+	}
+	if r.DownloadLimit == 0 && r.DownloadMbps > 0 {
+		r.DownloadLimit = r.DownloadMbps
+	}
+	if r.UploadMbps == 0 && r.UploadLimit > 0 {
+		r.UploadMbps = r.UploadLimit
+	}
+	if r.DownloadMbps == 0 && r.DownloadLimit > 0 {
+		r.DownloadMbps = r.DownloadLimit
+	}
 	return json.Marshal(struct {
 		alias
 		Reverse json.RawMessage `json:"reverse"`
@@ -804,25 +818,37 @@ type Host struct {
 func (Host) TableName() string { return "hosts" }
 
 func (c *Client) ToRecord() *ClientRecord {
+	up := c.UploadMbps
+	if up == 0 && c.UploadLimit > 0 {
+		up = c.UploadLimit
+	}
+	down := c.DownloadMbps
+	if down == 0 && c.DownloadLimit > 0 {
+		down = c.DownloadLimit
+	}
 	rec := &ClientRecord{
-		Email:      c.Email,
-		SubID:      c.SubID,
-		UUID:       c.ID,
-		Password:   c.Password,
-		Auth:       c.Auth,
-		Flow:       c.Flow,
-		Security:   c.Security,
-		LimitIP:    c.LimitIP,
-		TotalGB:    c.TotalGB,
-		ExpiryTime: c.ExpiryTime,
-		Enable:     c.Enable,
-		TgID:       c.TgID,
-		Group:      c.Group,
-		Comment:    c.Comment,
-		Reset:      c.Reset,
-		CreatedAt:  c.CreatedAt,
-		UpdatedAt:  c.UpdatedAt,
-		CreatedBy:  c.CreatedBy,
+		Email:        c.Email,
+		SubID:        c.SubID,
+		UUID:         c.ID,
+		Password:     c.Password,
+		Auth:         c.Auth,
+		Flow:         c.Flow,
+		Security:     c.Security,
+		LimitIP:      c.LimitIP,
+		UploadMbps:   up,
+		DownloadMbps: down,
+		UploadLimit:  up,
+		DownloadLimit: down,
+		TotalGB:      c.TotalGB,
+		ExpiryTime:   c.ExpiryTime,
+		Enable:       c.Enable,
+		TgID:         c.TgID,
+		Group:        c.Group,
+		Comment:      c.Comment,
+		Reset:        c.Reset,
+		CreatedAt:    c.CreatedAt,
+		UpdatedAt:    c.UpdatedAt,
+		CreatedBy:    c.CreatedBy,
 
 		PrivateKey:   c.PrivateKey,
 		PublicKey:    c.PublicKey,
@@ -858,25 +884,37 @@ func splitWireguardAllowedIPs(csv string) []string {
 }
 
 func (r *ClientRecord) ToClient() *Client {
+	up := r.UploadMbps
+	if up == 0 && r.UploadLimit > 0 {
+		up = r.UploadLimit
+	}
+	down := r.DownloadMbps
+	if down == 0 && r.DownloadLimit > 0 {
+		down = r.DownloadLimit
+	}
 	c := &Client{
-		ID:         r.UUID,
-		Email:      r.Email,
-		SubID:      r.SubID,
-		Password:   r.Password,
-		Auth:       r.Auth,
-		Flow:       r.Flow,
-		Security:   r.Security,
-		LimitIP:    r.LimitIP,
-		TotalGB:    r.TotalGB,
-		ExpiryTime: r.ExpiryTime,
-		Enable:     r.Enable,
-		TgID:       r.TgID,
-		Group:      r.Group,
-		Comment:    r.Comment,
-		Reset:      r.Reset,
-		CreatedAt:  r.CreatedAt,
-		UpdatedAt:  r.UpdatedAt,
-		CreatedBy:  r.CreatedBy,
+		ID:            r.UUID,
+		Email:         r.Email,
+		SubID:         r.SubID,
+		Password:      r.Password,
+		Auth:          r.Auth,
+		Flow:          r.Flow,
+		Security:      r.Security,
+		LimitIP:       r.LimitIP,
+		UploadMbps:    up,
+		DownloadMbps:  down,
+		UploadLimit:   up,
+		DownloadLimit: down,
+		TotalGB:       r.TotalGB,
+		ExpiryTime:    r.ExpiryTime,
+		Enable:        r.Enable,
+		TgID:          r.TgID,
+		Group:         r.Group,
+		Comment:       r.Comment,
+		Reset:         r.Reset,
+		CreatedAt:     r.CreatedAt,
+		UpdatedAt:     r.UpdatedAt,
+		CreatedBy:     r.CreatedBy,
 
 		PrivateKey:   r.PrivateKey,
 		PublicKey:    r.PublicKey,

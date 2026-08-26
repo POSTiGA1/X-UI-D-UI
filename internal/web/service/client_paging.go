@@ -15,20 +15,25 @@ import (
 // so the list payload stays compact even when the panel manages thousands
 // of clients. Modals that need the full record still call /get/:email.
 type ClientSlim struct {
-	Email      string              `json:"email"`
-	SubID      string              `json:"subId"`
-	Enable     bool                `json:"enable"`
-	TotalGB    int64               `json:"totalGB"`
-	ExpiryTime int64               `json:"expiryTime"`
-	LimitIP    int                 `json:"limitIp"`
-	Reset      int                 `json:"reset"`
-	Group      string              `json:"group,omitempty"`
-	Comment    string              `json:"comment,omitempty"`
-	CreatedBy  string              `json:"createdBy,omitempty"`
-	InboundIds []int               `json:"inboundIds"`
-	Traffic    *xray.ClientTraffic `json:"traffic,omitempty"`
-	CreatedAt  int64               `json:"createdAt"`
-	UpdatedAt  int64               `json:"updatedAt"`
+	Email         string              `json:"email"`
+	SubID         string              `json:"subId"`
+	Enable        bool                `json:"enable"`
+	TotalGB       int64               `json:"totalGB"`
+	ExpiryTime    int64               `json:"expiryTime"`
+	LimitIP       int                 `json:"limitIp"`
+	LimitHwid     int                 `json:"limitHwid"`
+	UploadMbps    int                 `json:"uploadMbps"`
+	DownloadMbps  int                 `json:"downloadMbps"`
+	UploadLimit   int                 `json:"uploadLimit"`
+	DownloadLimit int                 `json:"downloadLimit"`
+	Reset         int                 `json:"reset"`
+	Group         string              `json:"group,omitempty"`
+	Comment       string              `json:"comment,omitempty"`
+	CreatedBy     string              `json:"createdBy,omitempty"`
+	InboundIds    []int               `json:"inboundIds"`
+	Traffic       *xray.ClientTraffic `json:"traffic,omitempty"`
+	CreatedAt     int64               `json:"createdAt"`
+	UpdatedAt     int64               `json:"updatedAt"`
 }
 
 // ClientPageParams are the query params accepted by /panel/api/clients/list/paged.
@@ -303,21 +308,34 @@ func buildClientsSummary(all []ClientWithAttachments, onlineSet map[string]struc
 }
 
 func toClientSlim(c ClientWithAttachments) ClientSlim {
+	up := c.UploadMbps
+	if up == 0 && c.UploadLimit > 0 {
+		up = c.UploadLimit
+	}
+	down := c.DownloadMbps
+	if down == 0 && c.DownloadLimit > 0 {
+		down = c.DownloadLimit
+	}
 	return ClientSlim{
-		Email:      c.Email,
-		SubID:      c.SubID,
-		Enable:     c.Enable,
-		TotalGB:    c.TotalGB,
-		ExpiryTime: c.ExpiryTime,
-		LimitIP:    c.LimitIP,
-		Reset:      c.Reset,
-		Group:      c.Group,
-		Comment:    c.Comment,
-		CreatedBy:  c.CreatedBy,
-		InboundIds: c.InboundIds,
-		Traffic:    c.Traffic,
-		CreatedAt:  c.CreatedAt,
-		UpdatedAt:  c.UpdatedAt,
+		Email:         c.Email,
+		SubID:         c.SubID,
+		Enable:        c.Enable,
+		TotalGB:       c.TotalGB,
+		ExpiryTime:    c.ExpiryTime,
+		LimitIP:       c.LimitIP,
+		LimitHwid:     c.LimitHwid,
+		UploadMbps:    up,
+		DownloadMbps:  down,
+		UploadLimit:   up,
+		DownloadLimit: down,
+		Reset:         c.Reset,
+		Group:         c.Group,
+		Comment:       c.Comment,
+		CreatedBy:     c.CreatedBy,
+		InboundIds:    c.InboundIds,
+		Traffic:       c.Traffic,
+		CreatedAt:     c.CreatedAt,
+		UpdatedAt:     c.UpdatedAt,
 	}
 }
 

@@ -349,6 +349,19 @@ func (s *ClientService) Update(inboundSvc *InboundService, id int, updated model
 		}
 	}
 
+	up := updated.UploadMbps
+	if up == 0 && updated.UploadLimit > 0 {
+		up = updated.UploadLimit
+	}
+	down := updated.DownloadMbps
+	if down == 0 && updated.DownloadLimit > 0 {
+		down = updated.DownloadLimit
+	}
+	updated.UploadMbps = up
+	updated.DownloadMbps = down
+	updated.UploadLimit = up
+	updated.DownloadLimit = down
+
 	needRestart := false
 	for _, ibId := range inboundIds {
 		inbound, getErr := inboundSvc.GetInbound(ibId)
@@ -393,33 +406,19 @@ func (s *ClientService) Update(inboundSvc *InboundService, id int, updated model
 	}
 	if err := database.GetDB().Model(&model.ClientRecord{}).
 		Where("id = ?", id).
-		Update("reverse", reverseStr).Error; err != nil {
+		Updates(map[string]any{
+			"reverse":       reverseStr,
+			"group_name":    updated.Group,
+			"enable":        updated.Enable,
+			"upload_mbps":   up,
+			"download_mbps": down,
+			"limit_hwid":    updated.LimitHwid,
+			"limit_ip":      updated.LimitIP,
+			"updated_at":    time.Now().UnixMilli(),
+		}).Error; err != nil {
 		return needRestart, err
 	}
 
-	// Persist the group explicitly. SyncInbound deliberately preserves the
-	// stored group when the inbound settings carry none — so a node snapshot or a
-	// group-less settings rebuild can't wipe it (see SyncInbound + its tests).
-	// That guard also meant clearing the group in the client editor never took
-	// effect. The editor always round-trips the field, so apply it here,
-	// including the empty string that removes the client from its group.
-	if err := database.GetDB().Model(&model.ClientRecord{}).
-		Where("id = ?", id).
-		UpdateColumn("group_name", updated.Group).Error; err != nil {
-		return needRestart, err
-	}
-
-	if err := database.GetDB().Model(&model.ClientRecord{}).
-		Where("id = ?", id).
-		UpdateColumn("enable", updated.Enable).Error; err != nil {
-		return needRestart, err
-	}
-
-	if err := database.GetDB().Model(&model.ClientRecord{}).
-		Where("id = ?", id).
-		UpdateColumn("updated_at", time.Now().UnixMilli()).Error; err != nil {
-		return needRestart, err
-	}
 	return needRestart, nil
 }
 

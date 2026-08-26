@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -895,7 +896,14 @@ func (s *InboundService) DelInbound(id int) (bool, error) {
 		if err := tx.Find(&resellerAdmins).Error; err == nil {
 			for _, ra := range resellerAdmins {
 				var ibIds []int
-				if err := json.Unmarshal([]byte(ra.Inbounds), &ibIds); err == nil && len(ibIds) > 0 {
+				if err := json.Unmarshal([]byte(ra.Inbounds), &ibIds); err != nil {
+					for _, idStr := range strings.Split(ra.Inbounds, ",") {
+						if parsedId, err := strconv.Atoi(strings.TrimSpace(idStr)); err == nil {
+							ibIds = append(ibIds, parsedId)
+						}
+					}
+				}
+				if len(ibIds) > 0 {
 					newIbIds := make([]int, 0, len(ibIds))
 					changed := false
 					for _, existingId := range ibIds {

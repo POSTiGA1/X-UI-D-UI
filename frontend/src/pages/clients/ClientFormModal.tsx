@@ -372,9 +372,13 @@ export default function ClientFormModal({
       void loadHwids();
     } else {
       const wgKeypair = Wireguard.generateKeypair();
-      const defaultInboundIds = (effectiveInboundIds && effectiveInboundIds.length > 0)
-        ? [...effectiveInboundIds]
-        : (inbounds || []).map((ib) => ib.id);
+      const defaultInboundIds = (Array.isArray(attachedIds) && attachedIds.length > 0)
+        ? [...attachedIds]
+        : (isReseller
+            ? (effectiveInboundIds && effectiveInboundIds.length > 0
+                ? [...effectiveInboundIds]
+                : (inbounds || []).map((ib) => ib.id))
+            : []);
       setForm({
         ...emptyForm(),
         email: RandomUtil.randomLowerAndNum(10),

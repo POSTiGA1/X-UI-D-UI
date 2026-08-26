@@ -67,6 +67,15 @@ func (a *AdminController) list(c *gin.Context) {
 		admins = filtered
 	}
 
+	// Fetch existing inbound IDs to filter out any deleted/stale inbound IDs
+	db := database.GetDB()
+	var existingInboundIds []int
+	db.Model(&model.Inbound{}).Pluck("id", &existingInboundIds)
+	existingInboundMap := make(map[int]bool, len(existingInboundIds))
+	for _, id := range existingInboundIds {
+		existingInboundMap[id] = true
+	}
+
 	// Convert Inbounds to array for frontend
 	type AdminResp struct {
 		Id               string   `json:"id"`
@@ -88,9 +97,30 @@ func (a *AdminController) list(c *gin.Context) {
 	resp := make([]AdminResp, len(admins))
 	for i, ad := range admins {
 		var inbounds []int
-		_ = json.Unmarshal([]byte(ad.Inbounds), &inbounds)
+		if err := json.Unmarshal([]byte(ad.Inbounds), &inbounds); err != nil {
+			for _, idStr := range strings.Split(ad.Inbounds, ",") {
+				if id, err := strconv.Atoi(strings.TrimSpace(idStr)); err == nil {
+					inbounds = append(inbounds, id)
+				}
+			}
+		}
 		if inbounds == nil {
 			inbounds = []int{}
+		}
+
+		validInbounds := make([]int, 0, len(inbounds))
+		changed := false
+		for _, id := range inbounds {
+			if existingInboundMap[id] {
+				validInbounds = append(validInbounds, id)
+			} else {
+				changed = true
+			}
+		}
+
+		if changed {
+			newJson, _ := json.Marshal(validInbounds)
+			db.Model(&model.ResellerAdmin{}).Where("id = ?", ad.Id).Update("inbounds", string(newJson))
 		}
 
 		resp[i] = AdminResp{
@@ -101,7 +131,7 @@ func (a *AdminController) list(c *gin.Context) {
 			VolumeGB: ad.VolumeGB,
 			Days: ad.Days,
 			WebPath: ad.WebPath,
-			Inbounds: inbounds,
+			Inbounds: validInbounds,
 			CreatedAt: ad.CreatedAt,
 			ExpiryTime: ad.ExpiryTime,
 			Enable: ad.Enable,

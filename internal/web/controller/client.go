@@ -147,6 +147,12 @@ func (a *ClientController) initRouter(g *gin.RouterGroup) {
 	g.POST("/updateTraffic/:email", a.updateTrafficByEmail)
 	g.POST("/ips/:email", a.getIps)
 	g.POST("/clearIps/:email", a.clearIps)
+	g.POST("/hwids/:email", a.getHwids)
+	g.GET("/hwids/:email", a.getHwids)
+	g.DELETE("/hwids/:email", a.clearHwids)
+	g.POST("/clearHwids/:email", a.clearHwids)
+	g.DELETE("/hwids/:email/:id", a.deleteHwid)
+	g.POST("/deleteHwid/:email/:id", a.deleteHwid)
 	g.POST("/onlines", a.onlines)
 	g.POST("/onlinesByGuid", a.onlinesByGuid)
 	g.POST("/clientIpsByGuid", a.clientIpsByGuid)
@@ -704,6 +710,43 @@ func (a *ClientController) clearIps(c *gin.Context) {
 		return
 	}
 	jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.logCleanSuccess"), nil)
+}
+
+func (a *ClientController) getHwids(c *gin.Context) {
+	email := c.Param("email")
+	if !a.checkResellerAccess(c, email) { return }
+	infos, err := a.clientService.ListClientHwids(email)
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	jsonObj(c, infos, nil)
+}
+
+func (a *ClientController) clearHwids(c *gin.Context) {
+	email := c.Param("email")
+	if !a.checkResellerAccess(c, email) { return }
+	if err := a.clientService.ClearClientHwids(email); err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.logCleanSuccess"), nil)
+}
+
+func (a *ClientController) deleteHwid(c *gin.Context) {
+	email := c.Param("email")
+	if !a.checkResellerAccess(c, email) { return }
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	if err := a.clientService.DeleteClientHwid(email, id); err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.inboundClientDeleteSuccess"), nil)
 }
 
 func formatDestLabel(raw string) string {

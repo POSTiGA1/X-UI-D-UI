@@ -1371,7 +1371,44 @@ export function handleMockRequest(url: string, _method: string, requestData: unk
     return { success: true, obj: { deleted: emails.length } };
   }
 
-  // 30. All links list
+  // 30. Client HWIDs
+  if (path.startsWith('/panel/api/clients/hwids/')) {
+    if (method === 'DELETE') {
+      return { success: true, obj: null, msg: 'Cleared' };
+    }
+    return {
+      success: true,
+      obj: [
+        {
+          id: 1,
+          firstSeen: Date.now() - 3600000 * 24 * 2,
+          lastSeen: Date.now() - 1000 * 60 * 5,
+          userAgent: 'v2rayNG/1.8.19 (Linux; Android 14; Pixel 8 Pro)',
+          deviceOs: 'Android',
+          osVersion: '14',
+          deviceModel: 'Google Pixel 8 Pro',
+        },
+      ],
+    };
+  }
+
+  // 31. Client IPs
+  if (path.startsWith('/panel/api/clients/ips/')) {
+    return {
+      success: true,
+      obj: [
+        {
+          ip: '5.200.14.88',
+          city: 'Tehran',
+          country: 'Iran',
+          nodeName: 'Main Node',
+          lastSeen: Date.now() - 1000 * 60 * 10,
+        },
+      ],
+    };
+  }
+
+  // 32. All links list
   if (path === '/panel/api/inbounds/allLinks') {
     return {
       success: true,

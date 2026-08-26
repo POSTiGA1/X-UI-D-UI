@@ -108,6 +108,50 @@ export class HttpUtil {
     }
   }
 
+  static async delete<T = unknown>(url: string, params?: unknown, options: HttpOptions = {}): Promise<Msg<T>> {
+    const { silent, silentSuccess, ...axiosOpts } = options;
+    const mock = handleMockRequest(url, 'DELETE', params);
+    if (mock !== null) {
+      const msg = new Msg(mock.success, mock.msg || '', mock.obj ?? null) as Msg<T>;
+      if (!silent) this._handleMsg(msg, silentSuccess);
+      return msg;
+    }
+    try {
+      const resp = await axios.delete(url, { params, ...axiosOpts });
+      const msg = this._respToMsg(resp) as Msg<T>;
+      if (!silent) this._handleMsg(msg, silentSuccess);
+      return msg;
+    } catch (error) {
+      console.error('DELETE request failed:', error);
+      const err = error as AxiosError<{ message?: string }>;
+      const errorMsg = new Msg<T>(false, err.response?.data?.message || err.message || 'Request failed');
+      if (!silent) this._handleMsg(errorMsg);
+      return errorMsg;
+    }
+  }
+
+  static async put<T = unknown>(url: string, data?: unknown, options: HttpOptions = {}): Promise<Msg<T>> {
+    const { silent, silentSuccess, ...axiosOpts } = options;
+    const mock = handleMockRequest(url, 'PUT', data);
+    if (mock !== null) {
+      const msg = new Msg(mock.success, mock.msg || '', mock.obj ?? null) as Msg<T>;
+      if (!silent) this._handleMsg(msg, silentSuccess);
+      return msg;
+    }
+    try {
+      const resp = await axios.put(url, data, axiosOpts);
+      const msg = this._respToMsg(resp) as Msg<T>;
+      if (!silent) this._handleMsg(msg, silentSuccess);
+      return msg;
+    } catch (error) {
+      console.error('PUT request failed:', error);
+      const err = error as AxiosError<{ message?: string }>;
+      const errorMsg = new Msg<T>(false, err.response?.data?.message || err.message || 'Request failed');
+      if (!silent) this._handleMsg(errorMsg);
+      return errorMsg;
+    }
+  }
+
   static async postWithModal<T = unknown>(url: string, data?: unknown, modal?: HttpModal | null): Promise<Msg<T>> {
     if (modal) {
       modal.loading(true);

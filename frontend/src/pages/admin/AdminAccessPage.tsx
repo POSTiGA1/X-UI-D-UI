@@ -165,6 +165,9 @@ export default function AdminAccessPage() {
   const handleOpenEditModal = (admin: ResellerAdmin) => {
     setEditingAdmin(admin);
     const remainingDays = admin.expiryTime > 0 ? Math.max(0, Math.ceil((admin.expiryTime - Date.now()) / 86400000)) : 0;
+    const validInbounds = Array.isArray(admin.inbounds)
+      ? (inboundOptions.length > 0 ? admin.inbounds.filter(id => inboundOptions.some(o => o.id === id)) : admin.inbounds)
+      : [];
     form.setFieldsValue({
       remark: admin.remark,
       username: admin.username,
@@ -172,7 +175,7 @@ export default function AdminAccessPage() {
       volumeGB: admin.volumeGB,
       days: admin.expiryTime > 0 ? remainingDays : (admin.days || 0),
       webPath: admin.webPath,
-      inbounds: admin.inbounds,
+      inbounds: validInbounds,
       enable: admin.enable !== false,
       clientLimit: admin.clientLimit || 0,
     });
@@ -751,7 +754,7 @@ export default function AdminAccessPage() {
                       </span>
                       <span>•</span>
                       <span>
-                        🌐 {Array.isArray(row.inbounds) ? row.inbounds.length : 0} {dict.inboundCountSuffix}
+                        🌐 {Array.isArray(row.inbounds) ? (inboundOptions.length > 0 ? row.inbounds.filter(id => inboundOptions.some(o => o.id === id)).length : row.inbounds.length) : 0} {dict.inboundCountSuffix}
                       </span>
                       <span>•</span>
                       <Tooltip title={row.expiryTime > 0 ? IntlUtil.formatDate(row.expiryTime, datepicker) : undefined}>

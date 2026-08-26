@@ -33,6 +33,58 @@ func writeSubError(c *gin.Context, err error) {
 	c.Status(http.StatusInternalServerError)
 }
 
+func extractHwidRequest(c *gin.Context) service.HwidRequest {
+	hwid := c.GetHeader("X-HWID")
+	if hwid == "" {
+		hwid = c.GetHeader("HWID")
+	}
+	if hwid == "" {
+		hwid = c.GetHeader("X-Device-Id")
+	}
+	if hwid == "" {
+		hwid = c.Query("hwid")
+	}
+	if hwid == "" {
+		hwid = c.Query("device_id")
+	}
+	return service.HwidRequest{
+		Hwid:        hwid,
+		UserAgent:   c.GetHeader("User-Agent"),
+		DeviceOS:    c.GetHeader("X-Device-OS"),
+		OsVersion:   c.GetHeader("X-OS-Version"),
+		DeviceModel: c.GetHeader("X-Device-Model"),
+	}
+}
+
+func (a *SUBController) checkHwid(c *gin.Context, subId string) bool {
+	clientSvc := &service.ClientService{}
+	req := extractHwidRequest(c)
+	res, err := clientSvc.EnforceHwidForSubID(subId, req)
+	if err != nil {
+		logger.Warning("sub: enforce HWID error:", err)
+		return true
+	}
+	if !res.Active {
+		return true
+	}
+	c.Header("X-Hwid-Active", "true")
+	if res.NotSupported {
+		c.Header("X-Hwid-Not-Supported", "true")
+		c.Status(http.StatusNotFound)
+		return false
+	}
+	if res.MaxDevicesReached {
+		c.Header("X-Hwid-Max-Devices-Reached", "true")
+		c.Header("X-Hwid-Limit", "true")
+		c.Status(http.StatusNotFound)
+		return false
+	}
+	if res.LimitReached {
+		c.Header("X-Hwid-Limit", "true")
+	}
+	return true
+}
+
 // cachedSubTemplate holds a parsed custom subscription template together with
 // the modification time of the file it was parsed from, so the cache can be
 // invalidated when an admin edits the template on disk.
@@ -156,6 +208,11 @@ func (a *SUBController) subs(c *gin.Context) {
 	// gets clean, name-only remarks (usage is shown in the page summary).
 	accept := c.GetHeader("Accept")
 	wantsHTML := strings.Contains(strings.ToLower(accept), "text/html") || c.Query("html") == "1" || strings.EqualFold(c.Query("view"), "html")
+	if !wantsHTML {
+		if !a.checkHwid(c, subId) {
+			return
+		}
+	}
 	subReq.subscriptionBody = !wantsHTML
 	subs, emails, lastOnline, traffic, err := subReq.getSubs(subId)
 	if err != nil || len(subs) == 0 {
@@ -376,6 +433,9 @@ func (a *SUBController) loadSubTemplate(themeDir string) (*template.Template, er
 // subJsons handles HTTP requests for JSON subscription configurations.
 func (a *SUBController) subJsons(c *gin.Context) {
 	subId := c.Param("subid")
+	if !a.checkHwid(c, subId) {
+		return
+	}
 	scheme, host, hostWithPort, _ := a.subService.ResolveRequest(c)
 	jsonSub, header, err := a.subJsonService.GetJson(subId, host)
 	if err != nil || len(jsonSub) == 0 {
@@ -393,6 +453,9 @@ func (a *SUBController) subJsons(c *gin.Context) {
 
 func (a *SUBController) subClashs(c *gin.Context) {
 	subId := c.Param("subid")
+	if !a.checkHwid(c, subId) {
+		return
+	}
 	scheme, host, hostWithPort, _ := a.subService.ResolveRequest(c)
 	clashSub, header, err := a.subClashService.GetClash(subId, host)
 	if err != nil || len(clashSub) == 0 {
