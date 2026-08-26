@@ -372,6 +372,9 @@ export default function ClientFormModal({
       void loadHwids();
     } else {
       const wgKeypair = Wireguard.generateKeypair();
+      const defaultInboundIds = (effectiveInboundIds && effectiveInboundIds.length > 0)
+        ? [...effectiveInboundIds]
+        : (inbounds || []).map((ib) => ib.id);
       setForm({
         ...emptyForm(),
         email: RandomUtil.randomLowerAndNum(10),
@@ -381,12 +384,12 @@ export default function ClientFormModal({
         auth: RandomUtil.randomLowerAndNum(16),
         wgPrivateKey: wgKeypair.privateKey,
         wgPublicKey: wgKeypair.publicKey,
-        inboundIds: effectiveInboundIds ? [...effectiveInboundIds] : [],
+        inboundIds: defaultInboundIds,
       });
     }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, isEdit]);
+  }, [open, isEdit, effectiveInboundIds, inbounds]);
 
   const flowCapableIds = useMemo(() => {
     const ids = new Set<number>();
@@ -545,7 +548,16 @@ export default function ClientFormModal({
   }
 
   async function onSubmit() {
-    const finalInboundIds = (isReseller && !isEdit) ? (effectiveInboundIds || []) : form.inboundIds;
+    let finalInboundIds = form.inboundIds;
+    if (isReseller && (!finalInboundIds || finalInboundIds.length === 0)) {
+      finalInboundIds = (effectiveInboundIds && effectiveInboundIds.length > 0)
+        ? effectiveInboundIds
+        : (inbounds || []).map((ib) => ib.id);
+    } else if (!finalInboundIds || finalInboundIds.length === 0) {
+      if (effectiveInboundIds && effectiveInboundIds.length > 0) {
+        finalInboundIds = effectiveInboundIds;
+      }
+    }
     const schema = isEdit ? ClientFormSchema : (isReseller ? ClientFormSchema : ClientCreateFormSchema);
     const validated = schema.safeParse({
       email: form.email,

@@ -201,14 +201,10 @@ func (s *SubService) loadRemarkSettings() {
 
 func (s *SubService) configuredPublicHost() string {
 	if d, err := s.settingService.GetSubDomain(); err == nil && d != "" {
-		if cleaned := common.CleanDomainHost(d); cleaned != "" {
-			return cleaned
-		}
+		return d
 	}
 	if d, err := s.settingService.GetWebDomain(); err == nil && d != "" {
-		if cleaned := common.CleanDomainHost(d); cleaned != "" {
-			return cleaned
-		}
+		return d
 	}
 	return ""
 }

@@ -115,7 +115,7 @@ func (s *AdminService) AddAdmin(admin *model.ResellerAdmin) error {
 func (s *AdminService) UpdateAdmin(admin *model.ResellerAdmin) error {
 	db := database.GetDB()
 	var existing model.ResellerAdmin
-	if err := db.First(&existing, "id = ?", admin.Id).Error; err != nil {
+	if err := db.Where("id = ? OR username = ?", admin.Id, admin.Username).First(&existing).Error; err != nil {
 		return err
 	}
 	// Check unique constraints except for self
@@ -133,7 +133,7 @@ func (s *AdminService) UpdateAdmin(admin *model.ResellerAdmin) error {
 	}
 
 	var count int64
-	db.Model(&model.ResellerAdmin{}).Where("(LOWER(username) = LOWER(?) OR web_path = ? OR remark = ?) AND id != ?", admin.Username, admin.WebPath, admin.Remark, admin.Id).Count(&count)
+	db.Model(&model.ResellerAdmin{}).Where("(LOWER(username) = LOWER(?) OR web_path = ? OR (remark != '' AND remark = ?)) AND id != ? AND username != ?", admin.Username, admin.WebPath, admin.Remark, existing.Id, existing.Username).Count(&count)
 	if count > 0 {
 		return errors.New("admin with this username, web_path or remark already exists")
 	}

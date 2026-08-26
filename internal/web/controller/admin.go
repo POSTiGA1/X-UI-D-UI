@@ -245,10 +245,50 @@ func (a *AdminController) update(c *gin.Context) {
 		ClientLimit: form.ClientLimit,
 	}
 	
+	var existing model.ResellerAdmin
+	var oldInboundIds []int
+	if err := database.GetDB().Where("id = ? OR username = ?", form.Id, username).First(&existing).Error; err == nil {
+		_ = json.Unmarshal([]byte(existing.Inbounds), &oldInboundIds)
+	}
+
 	err := a.adminService.UpdateAdmin(admin)
 	if err != nil {
 		jsonMsg(c, "Failed to update reseller admin", err)
 		return
+	}
+
+	// Synchronize inbounds on existing clients if inbounds changed
+	if form.Inbounds != nil && len(oldInboundIds) > 0 {
+		oldMap := make(map[int]bool)
+		for _, id := range oldInboundIds {
+			oldMap[id] = true
+		}
+		newMap := make(map[int]bool)
+		for _, id := range form.Inbounds {
+			newMap[id] = true
+		}
+		var toDetach []int
+		for _, id := range oldInboundIds {
+			if !newMap[id] {
+				toDetach = append(toDetach, id)
+			}
+		}
+		if len(toDetach) > 0 {
+			var clients []model.ClientRecord
+			database.GetDB().Model(&model.ClientRecord{}).Where("LOWER(created_by) = LOWER(?)", username).Find(&clients)
+			emails := make([]string, 0, len(clients))
+			for _, cl := range clients {
+				if cl.Email != "" {
+					emails = append(emails, cl.Email)
+				}
+			}
+			if len(emails) > 0 {
+				_, needRestart, _ := a.clientService.BulkDetach(&a.inboundService, emails, toDetach)
+				if needRestart {
+					a.xrayService.SetToNeedRestart()
+				}
+			}
+		}
 	}
 
 	if admin.Enable {
@@ -428,7 +468,7 @@ func (a *AdminController) attachInbounds(c *gin.Context) {
 	if masterUser != nil && (form.Id == strconv.Itoa(masterUser.Id) || form.Id == "1" || form.Id == "0") {
 		targetUsername = masterUser.Username
 	} else {
-		if err := db.Where("id = ?", form.Id).First(&admin).Error; err != nil {
+		if err := db.Where("id = ? OR username = ?", form.Id, form.Id).First(&admin).Error; err != nil {
 			jsonMsg(c, "Admin not found", err)
 			return
 		}
@@ -523,7 +563,7 @@ func (a *AdminController) detachInbounds(c *gin.Context) {
 	if masterUser != nil && (form.Id == strconv.Itoa(masterUser.Id) || form.Id == "1" || form.Id == "0") {
 		targetUsername = masterUser.Username
 	} else {
-		if err := db.Where("id = ?", form.Id).First(&admin).Error; err != nil {
+		if err := db.Where("id = ? OR username = ?", form.Id, form.Id).First(&admin).Error; err != nil {
 			jsonMsg(c, "Admin not found", err)
 			return
 		}

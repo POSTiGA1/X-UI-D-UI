@@ -49,11 +49,12 @@ func (a *ClientController) filterResellerInbounds(c *gin.Context, inboundIds []i
 		return inboundIds, nil
 	}
 	resellerId := session.GetLoginReseller(c)
+	resellerUser := session.GetLoginResellerUsername(c)
 	var admin model.ResellerAdmin
-	if err := database.GetDB().Where("id = ?", resellerId).First(&admin).Error; err != nil {
+	if err := database.GetDB().Where("id = ? OR username = ?", resellerId, resellerUser).First(&admin).Error; err != nil {
 		return nil, err
 	}
-  if admin.Inbounds == "" {
+	if admin.Inbounds == "" {
 		return []int{}, nil
 	}
 	var allowed []int
@@ -71,11 +72,8 @@ func (a *ClientController) filterResellerInbounds(c *gin.Context, inboundIds []i
 		allowedMap[id] = true
 	}
 
-	if inboundIds == nil {
-		return allowed, nil
-	}
 	if len(inboundIds) == 0 {
-		return []int{}, nil
+		return allowed, nil
 	}
 
 	var filtered []int
@@ -83,6 +81,9 @@ func (a *ClientController) filterResellerInbounds(c *gin.Context, inboundIds []i
 		if allowedMap[id] {
 			filtered = append(filtered, id)
 		}
+	}
+	if len(filtered) == 0 {
+		return allowed, nil
 	}
 	return filtered, nil
 }

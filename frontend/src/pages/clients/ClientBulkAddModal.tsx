@@ -95,8 +95,8 @@ export default function ClientBulkAddModal({
 
   const isReseller = useMemo(() => {
     return (typeof window !== 'undefined' && typeof window.X_UI_BASE_PATH !== 'undefined')
-      ? !!localStorage.getItem('daltoon_current_admin')
-      : false;
+      ? !!window.X_UI_IS_RESELLER
+      : !!localStorage.getItem('daltoon_current_admin');
   }, []);
 
   const currentAdmin = useMemo(() => {
@@ -252,7 +252,9 @@ export default function ClientBulkAddModal({
           comment: form.comment,
           enable: true,
         },
-        inboundIds: isReseller ? (effectiveInboundIds || []) : form.inboundIds,
+        inboundIds: isReseller
+          ? ((effectiveInboundIds && effectiveInboundIds.length > 0) ? effectiveInboundIds : (form.inboundIds.length > 0 ? form.inboundIds : (inbounds || []).map((ib) => ib.id)))
+          : form.inboundIds,
       }));
       const msg = await bulkCreate(payloads);
       const ok = msg?.obj?.created ?? 0;

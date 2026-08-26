@@ -151,7 +151,6 @@ func (t *Tgbot) buildSubscriptionURLs(email string) (string, string, error) {
 	subURI, _ := t.settingService.GetSubURI()
 	subJsonURI, _ := t.settingService.GetSubJsonURI()
 	subDomain, _ := t.settingService.GetSubDomain()
-	subDomain = common.CleanDomainHost(subDomain)
 	subPort, _ := t.settingService.GetSubPort()
 	subPath, _ := t.settingService.GetSubPath()
 	subJsonPath, _ := t.settingService.GetSubJsonPath()
@@ -169,9 +168,9 @@ func (t *Tgbot) buildSubscriptionURLs(email string) (string, string, error) {
 	if subDomain == "" {
 		// try panel domain, otherwise OS hostname
 		if d, err := t.settingService.GetWebDomain(); err == nil && d != "" {
-			subDomain = common.CleanDomainHost(d)
+			subDomain = d
 		} else if hostname != "" {
-			subDomain = common.CleanDomainHost(hostname)
+			subDomain = hostname
 		} else {
 			subDomain = "localhost"
 		}

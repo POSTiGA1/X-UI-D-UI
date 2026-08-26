@@ -78,7 +78,7 @@ func GetLoginUser(c *gin.Context) *model.User {
 	}
 	
 	s := sessions.Default(c)
-	if c.GetBool("is_reseller") {
+	if c.GetBool("is_reseller") || IsResellerLogin(c) {
 		resellerId := GetLoginReseller(c)
 		if resellerId != "" {
 			return &model.User{Id: 1, Username: "reseller"} // fake user with Id=1 so they can access inbounds
@@ -145,7 +145,7 @@ func sessionEpochMatches(cookieVal any, userEpoch int64) bool {
 }
 
 func IsLogin(c *gin.Context) bool {
-	if c.GetBool("is_reseller") {
+	if c.GetBool("is_reseller") || IsResellerLogin(c) {
 		return IsResellerLogin(c)
 	}
 	return GetLoginUser(c) != nil
