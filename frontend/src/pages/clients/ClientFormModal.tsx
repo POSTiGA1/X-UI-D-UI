@@ -874,7 +874,7 @@ export default function ClientFormModal({
                     </Row>
 
                     <Row gutter={16}>
-                      <Col xs={24} sm={12}>
+                      <Col xs={24} sm={16}>
                         {form.delayedStart ? (
                           <Form.Item label={t('pages.clients.expireDays')} tooltip={t('pages.clients.expireDays')}>
                             <InputNumber
@@ -970,7 +970,7 @@ export default function ClientFormModal({
                           </Form.Item>
                         )}
                       </Col>
-                      <Col xs={12} sm={6}>
+                      <Col xs={24} sm={8}>
                         <Form.Item label={t('pages.clients.delayedStart')}>
                           <Switch
                             checked={form.delayedStart}
@@ -985,40 +985,11 @@ export default function ClientFormModal({
                           />
                         </Form.Item>
                       </Col>
-                      <Col xs={12} sm={6}>
-                        <Form.Item label={t('pages.clients.renewDays')} tooltip={t('pages.clients.renewDesc')}>
-                          <InputNumber
-                            value={form.delayedStart ? form.delayedDays : 0}
-                            min={0}
-                            style={{ width: '100%' }}
-                            onChange={(v) => {
-                              const val = Number(v) || 0;
-                              if (form.delayedStart) {
-                                update('delayedDays', val);
-                              }
-                            }}
-                          />
-                          <PresetChips
-                            items={[
-                              { label: '0', value: 0 },
-                              { label: '30d', value: 30 },
-                              { label: '60d', value: 60 },
-                              { label: '90d', value: 90 },
-                            ]}
-                            selectedValue={form.delayedStart ? form.delayedDays : 0}
-                            onSelect={(v) => {
-                              if (form.delayedStart) {
-                                update('delayedDays', v);
-                              }
-                            }}
-                          />
-                        </Form.Item>
-                      </Col>
                     </Row>
 
                     <Row gutter={16}>
-                      <Col xs={24} sm={8}>
-                        <Form.Item label={t('pages.clients.resetDay')} tooltip={t('pages.clients.resetDayDesc')}>
+                      <Col xs={24} sm={12}>
+                        <Form.Item label={t('pages.clients.renewDays')} tooltip={t('pages.clients.renewDesc')}>
                           <InputNumber
                             value={form.reset}
                             min={0}
@@ -1032,13 +1003,15 @@ export default function ClientFormModal({
                               { label: '7d', value: 7 },
                               { label: '15d', value: 15 },
                               { label: '30d', value: 30 },
+                              { label: '60d', value: 60 },
+                              { label: '90d', value: 90 },
                             ]}
                             selectedValue={form.reset}
                             onSelect={(v) => update('reset', v)}
                           />
                         </Form.Item>
                       </Col>
-                      <Col xs={24} sm={8}>
+                      <Col xs={24} sm={12}>
                         <Form.Item label={t('pages.clients.resetLimit')} tooltip={t('pages.clients.resetLimitDesc')}>
                           <InputNumber
                             value={form.resetLimit}
@@ -1056,24 +1029,6 @@ export default function ClientFormModal({
                             ]}
                             selectedValue={form.resetLimit}
                             onSelect={(v) => update('resetLimit', v)}
-                          />
-                        </Form.Item>
-                      </Col>
-                      <Col xs={24} sm={8}>
-                        <Form.Item label={t('pages.clients.resetTraffic')} tooltip={t('pages.clients.trafficResetCycleDesc')}>
-                          <Select
-                            value={form.reset}
-                            onChange={(v) => update('reset', Number(v) || 0)}
-                            options={[
-                              { value: 0, label: t('pages.clients.trafficResetNever') },
-                              { value: 1, label: t('pages.clients.trafficResetDaily') },
-                              { value: 7, label: t('pages.clients.trafficResetWeekly') },
-                              { value: 15, label: t('pages.clients.trafficResetBiweekly') },
-                              { value: 30, label: t('pages.clients.trafficResetMonthly') },
-                              ...(form.reset !== 0 && form.reset !== 1 && form.reset !== 7 && form.reset !== 15 && form.reset !== 30
-                                ? [{ value: form.reset, label: `${form.reset} ${t('pages.clients.days')}` }]
-                                : []),
-                            ]}
                           />
                         </Form.Item>
                       </Col>
